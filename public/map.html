@@ -8,7 +8,7 @@
 <style>
   :root{
     --bg:#05070d; --panel:rgba(10,17,28,.92); --border:rgba(86,145,255,.16);
-    --accent:#3b82f6; --accent2:#78abff; --text:#e9eff8; --dim:#93a4bd;
+    --accent:#3b82f6; --accent2:#78abff; --text:#e9eff8; --dim:#93a4bd; --green:#3ddc84;
     --mono:"JetBrains Mono",ui-monospace,monospace; --body:"Inter",system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -21,7 +21,6 @@
   .controls{position:absolute;z-index:1000;top:12px;right:12px;width:240px;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;backdrop-filter:blur(6px)}
   .controls h2{margin:0 0 8px;font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
   .hint{margin:0 0 8px;font-size:11px;line-height:1.5;color:var(--dim)}
-  .count{margin-bottom:6px;font-family:var(--mono);font-size:11px;color:var(--accent2)}
   .pins{list-style:none;margin:0;max-height:220px;overflow:auto;padding:0;font-size:12px}
   .pins li{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--border)}
   .dot{flex:none;width:12px;height:12px;border-radius:50%;margin-top:2px}
@@ -64,12 +63,26 @@
   .status{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--dim)}
   .status.ok{color:var(--accent2)}
   .status.err{color:#e0a13b}
+  .sightings{margin-left:auto;flex:none;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--green);white-space:nowrap}
+  .sightings b{font-weight:700}
+  .menuBtn{display:none;flex:none;width:38px;height:32px;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:17px;line-height:1;cursor:pointer}
+  .menuBtn:hover{border-color:var(--accent);color:#fff}
+  @media (max-width:760px){
+    header{padding:8px 10px}
+    header h1{font-size:11px}
+    .menuBtn{display:inline-flex}
+    .sightings{font-size:10px;letter-spacing:.03em}
+    .controls{position:fixed;top:58px;right:10px;z-index:1500;width:min(340px,calc(100vw - 20px));max-height:calc(100vh - 74px);overflow:auto;display:none;box-shadow:0 18px 44px rgba(0,0,0,.55)}
+    .controls.open{display:block}
+  }
 </style>
 </head>
 <body>
   <header>
     <img class="logo" src="assets/logo.png" alt="Nightwatch Aviation" />
     <h1>Nightwatch Software Division · Lost Dog Tracking System</h1>
+    <div class="sightings" id="sightings">lost dog sightings: <b id="countNum">0</b></div>
+    <button class="menuBtn" id="menuBtn" aria-label="Toggle map controls" aria-expanded="false">☰</button>
   </header>
   <div id="map"></div>
   <div class="controls">
@@ -80,7 +93,6 @@
     <button class="btn locate" id="locate">◎ Use my location</button>
     <button class="btn" id="refresh" title="Refresh shared pins now">⟳ Refresh</button>
     <h2>Logged</h2>
-    <div class="count" id="count">0 dogs</div>
     <p class="hint">Click the map to log a dog — <b>shared with every visitor</b>. A pop-up asks for size, color, sex and notes.</p>
     <ul class="pins" id="pins"></ul>
     <div class="status" id="status">Map: Bucyrus, OH (default)</div>
@@ -88,7 +100,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
   // Base map: Esri World Street Map (reliable, no key, no OSM rate-limit).
-  // Default: Esri streets. Alternate: Esri World Imagery (satellite).
+  // Default: Esri World Imagery (satellite). Alternate: Esri World Street Map.
   // NOTE: OpenStreetMap's public tiles were throttling/blanking this connection (returning
   //       1x1 empty tiles in bursts), so a no-key Esri street basemap is used instead.
   //       If you have a self-hosted OSM tile set or a MapTiler/Stadia key, swap the URL above.
@@ -102,21 +114,21 @@
     maxZoom: 19,
     attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
   });
-  baseDark.addTo(map);
+  baseSat.addTo(map);
 
-  // If the default tiles get blocked (403, etc.), switch to satellite automatically.
+  // If the default (satellite) tiles get blocked (403, etc.), switch to street automatically.
   let fellBack = false;
-  baseDark.on('tileerror', function () {
+  baseSat.on('tileerror', function () {
     if (fellBack) return;
     fellBack = true;
-    if (map.hasLayer(baseSat)) map.removeLayer(baseSat);
-    map.removeLayer(baseDark);
-    baseSat.addTo(map);
+    if (map.hasLayer(baseDark)) map.removeLayer(baseDark);
+    map.removeLayer(baseSat);
+    baseDark.addTo(map);
     const s = document.getElementById('status');
-    if (s) { s.textContent = 'Street tiles unavailable, switched to satellite (Esri)'; s.className = 'status err'; }
+    if (s) { s.textContent = 'Satellite tiles unavailable, switched to street (Esri)'; s.className = 'status err'; }
   });
 
-  L.control.layers({ 'Streets': baseDark, 'Satellite': baseSat }, null, { position: 'bottomleft' }).addTo(map);
+  L.control.layers({ 'Satellite': baseSat, 'Streets': baseDark }, null, { position: 'bottomleft' }).addTo(map);
   let refMarker=L.marker([40.808, -82.975], {
     icon: L.divIcon({className:'', iconSize:[12,12], html:'<div style="width:12px;height:12px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)"></div>'})
   }).addTo(map).bindTooltip('Bucyrus, OH', {permanent:true, direction:'top', offset:[0,-8]});
@@ -247,7 +259,7 @@
 
   function renderList(){
     const ul=document.getElementById('pins'); ul.innerHTML='';
-    document.getElementById('count').textContent=pins.length+(pins.length===1?' dog':' dogs');
+    document.getElementById('countNum').textContent=String(pins.length);
     pins.slice().reverse().forEach(pin=>{
       const li=document.createElement('li');
       const dot=document.createElement('span'); dot.className='dot'; dot.style.background=pin.hex;
@@ -262,26 +274,42 @@
   }
 
   // --- Geolocation: center on the user's phone; fall back to Bucyrus if denied/unavailable ---
+  // Two-pass strategy for mobile (e.g. Samsung/Chrome): first try high-accuracy GPS with a
+  // generous timeout (a cold GPS fix can take >10 s). If that fails with "unavailable" or
+  // "timeout", retry with network location (WiFi/cell), which usually works even when GPS
+  // hardware is slow or denied precision.
   const BUCYRUS=[40.808,-82.975];
   let userCircle=null, userDot=null;
   const statusEl=document.getElementById('status');
   function setStatus(msg, cls){ statusEl.textContent=msg; statusEl.className='status'+(cls?' '+cls:''); }
+  function placeUser(pos){
+    const ll=[pos.coords.latitude,pos.coords.longitude];
+    map.setView(ll,16);
+    if(userCircle){ map.removeLayer(userCircle); userCircle=null; }
+    if(userDot){ map.removeLayer(userDot); userDot=null; }
+    if(pos.coords.accuracy){ userCircle=L.circle(ll,{radius:pos.coords.accuracy,color:'#3b82f6',weight:1,fillColor:'#3b82f6',fillOpacity:.12}).addTo(map); }
+    userDot=L.marker(ll,{icon:L.divIcon({className:'',iconSize:[16,16],iconAnchor:[8,8],html:'<div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.25)"></div>'})}).addTo(map).bindTooltip('Your location',{direction:'top',offset:[0,-10]});
+    setStatus('Centered on you (' + (pos.coords.accuracy ? '\u00b1' + Math.round(pos.coords.accuracy) + ' m' : 'approximate') + ')','ok');
+  }
   function locate(){
     if(!('geolocation' in navigator)){ setStatus('Location not supported, defaulting to Bucyrus, OH','err'); return; }
-    setStatus('Requesting location…');
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const ll=[pos.coords.latitude,pos.coords.longitude];
-      map.setView(ll,16);
-      if(userCircle){ map.removeLayer(userCircle); userCircle=null; }
-      if(userDot){ map.removeLayer(userDot); userDot=null; }
-      if(pos.coords.accuracy){ userCircle=L.circle(ll,{radius:pos.coords.accuracy,color:'#3b82f6',weight:1,fillColor:'#3b82f6',fillOpacity:.12}).addTo(map); }
-      userDot=L.marker(ll,{icon:L.divIcon({className:'',iconSize:[16,16],iconAnchor:[8,8],html:'<div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.25)"></div>'})}).addTo(map).bindTooltip('Your location',{direction:'top',offset:[0,-10]});
-      setStatus('Centered on you (±'+Math.round(pos.coords.accuracy)+' m)','ok');
-    },err=>{
+    setStatus('Requesting location (allow location access if prompted)...');
+    askPosition(true);
+  }
+  function askPosition(highAccuracy){
+    navigator.geolocation.getCurrentPosition(placeUser,err=>{
+      if (highAccuracy && err && (err.code===2 || err.code===3)) {
+        setStatus('GPS unavailable, trying network location...');
+        askPosition(false);
+        return;
+      }
       map.setView(BUCYRUS,15);
-      const why=(err&&err.code===1)?'permission denied':'unavailable';
-      setStatus('GPS '+why+', defaulting to Bucyrus, OH','err');
-    },{enableHighAccuracy:true,timeout:8000,maximumAge:60000});
+      let msg;
+      if (err && err.code===1)      msg='permission denied - allow Location in your browser settings, then tap "Use my location" again';
+      else if (err && err.code===2) msg='unavailable on this device - turn on Location in your phone Settings, then tap "Use my location" again';
+      else                          msg='request timed out - try again outside or near a window';
+      setStatus('GPS: ' + msg + ' - showing Bucyrus, OH','err');
+    },{enableHighAccuracy:highAccuracy,timeout:highAccuracy?20000:8000,maximumAge:60000});
   }
   document.getElementById('locate').addEventListener('click',locate);
   locate();
@@ -340,6 +368,27 @@
   if (refreshBtn) refreshBtn.addEventListener('click',()=>loadPins(true));
   loadPins(true);                                        // initial shared load
   setInterval(()=>{ if(!popupOpen) loadPins(false); }, 15000);  // pick up other users' pins
+  // --- Mobile hamburger: controls become a dropdown under the black header bar ---
+  const menuBtn=document.getElementById('menuBtn');
+  const controlsEl=document.querySelector('.controls');
+  if (menuBtn && controlsEl) {
+    menuBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const open=controlsEl.classList.toggle('open');
+      if (open) {
+        controlsEl.style.top=(document.querySelector('header').offsetHeight+1)+'px';
+        menuBtn.setAttribute('aria-expanded','true');
+      } else {
+        menuBtn.setAttribute('aria-expanded','false');
+      }
+    });
+    document.addEventListener('click',e=>{
+      if (controlsEl.classList.contains('open') && !controlsEl.contains(e.target) && !menuBtn.contains(e.target)) {
+        controlsEl.classList.remove('open');
+        menuBtn.setAttribute('aria-expanded','false');
+      }
+    });
+  }
   </script>
 </body>
 </html>
