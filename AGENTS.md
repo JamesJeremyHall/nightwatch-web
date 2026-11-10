@@ -46,11 +46,11 @@ All JSON. Served by `server.js`.
 |---|---|
 | `GET /api/health` | `{ ok, pins }` — liveness + pin count |
 | `GET /api/pins` | list all pins |
-| `POST /api/pins` | add a pin `{ lat, lng, size, color, sex?, notes?, seen_at? }` — enums validated, `hex` derived server-side from `color` |
-| `PUT /api/pins/:id` | update a pin (same fields) — **`seen_at` is not changeable** (stored value preserved) |
+| `POST /api/pins` | add a pin `{ lat, lng, size, color, sex?, collar?, notes?, seen_at? }` — enums validated, `hex` derived server-side from `color` |
+| `PUT /api/pins/:id` | update a pin's **notes only** — size/color/sex/collar/seen_at are frozen once logged (any values for them in the request are ignored) |
 | `DELETE /api/pins/:id` | delete one pin |
 
-Pin shape: `id, lat, lng, size (Small/Medium/Large), color (Black/Brown/White/Gray/Tan/Red), hex (derived from color), sex (Male/Female/Unknown), notes, created (ms epoch), seen_at (ms epoch — when the dog was actually seen; NULL for pins logged before that field existed, UI falls back to `created`)`.
+Pin shape: `id, lat, lng, size (Small/Medium/Large), color (Black/Brown/White/Gray/Tan/Red), hex (derived from color), sex (Male/Female/Unknown), collar (Yes/No/Unknown — "has a collar?"; NULL when not reported), notes, created (ms epoch), seen_at (ms epoch — when the dog was actually seen; NULL for pins logged before that field existed, UI falls back to `created`)`.
 
 **Abuse guardrails (owner-locked spec):**
 - `size`/`color`/`sex` are **validated against canonical enums** server-side (case-insensitive match, `400` otherwise) — this is also the stored-XSS guard, since the map renders these fields unescaped into tooltip HTML
@@ -103,11 +103,12 @@ The agent is **full-stack end to end**: the owner types an idea → the agent bu
 - **Basemaps:** Esri World Imagery (satellite) + Esri World Street Map (streets), both via Esri ArcGIS tile service. **Why:** OpenStreetMap public tiles 403/blank from this network, and the owner has no map API keys. Esri needs no key.
 - **Default basemap is context-aware** (one `map.html` serves both modes, `embedded = window.self !== window.top`): **embedded on the main page → Satellite by default**; **full-screen map.html → Street by default**. A layer control offers both in either context, and if the default's tiles fail (e.g. 403), it auto-swaps to the other basemap with a status message.
 - **Center:** Bucyrus, Ohio `[40.808, -82.975]`
-- **Copy (owner-locked):** heading/lead "The live map."; hint "Click the map to report a lost dog sighting. A pop-up asks for size, color, sex and notes. Scroll through and tap on the reported sightings below to zoom in on the location."; status "Synced: N shared sightings"; header counter "lost dog sightings: N" (green, **right-justified** in the header, left of the ☰ button).
+- **Copy (owner-locked):** heading/lead "The live map."; hint "Click the map to report a lost dog sighting. A pop-up asks for size, color, sex, collar and notes. Once a sighting is logged, only its notes can be edited (or the pin deleted). Scroll through and tap on the reported sightings below to zoom in on the location."; status "Synced: N shared sightings"; header counter "lost dog sightings: N" (green, **right-justified** in the header, left of the ☰ button).
 - **Delete flow (owner-locked):** red **Delete** button inside the pin's popup. Clicking it swaps the popup row to an inline confirmation ("Delete this sighting?" / "Yes, delete" / "No") — **never a browser `confirm()` dialog** (it breaks the embed on the main page). New, unsaved pins show no Delete button. All popup button handlers call `stopPropagation()` so map clicks don't fire underneath.
 - **Pin hover tooltip:** `Size · Color · Sex` label, **Seen at** date/time line below it (locale-formatted; legacy pins without `seen_at` fall back to `created`), then the **notes** (escaped, wrapped, max 230px); pins without notes show label + seen-at only. The pin list shows the same seen-at line under each label.
-- **Seen-at is locked after logging (owner-locked):** in the pin popup the `Seen at` date/time input is editable only for a **new** sighting (defaults to now); on an **existing** pin it is **disabled** and shows the saved value — "Save" updates size/color/sex/notes but never `seen_at`. The only way to change a sighting's time is delete + re-drop.
-- **Features (all built and working):** size + color + sex + seen-at date/time + notes selector, click-to-pin, pin list with zoom-on-tap, inline delete, city search (Photon → Nominatim fallback), "use my location", basemap toggle, auto-fallback basemap, full-screen mode, live shared-pin polling.
+- **New sighting form (owner-locked):** the popup opens with a "REPORT LOST DOG SIGHTING" title and **no preselections** — size/color/sex/collar all start blank (only the date/time field is pre-filled, with now). **Size, color and sex are required** — "Save" is refused with an inline "Choose …" message until all three are picked; **collar (Yes/No/Unknown) is optional** (blank → stored as null).
+- **Logged sightings are frozen after logging (owner-locked):** once saved, a pin's location, size, color, sex, collar and seen-at can no longer be changed — the popup shows them read-only (size·color·sex as one line, collar, disabled seen-at) and the only editable field is **notes**; the server-side `PUT` accepts **only `notes`** and ignores everything else. The only way to change the sighting itself is delete + re-drop.
+- **Features (all built and working):** size + color + sex + collar + seen-at date/time + notes selector, click-to-pin, pin list with zoom-on-tap, inline delete, city search (Photon → Nominatim fallback), "use my location", basemap toggle, auto-fallback basemap, full-screen mode, live shared-pin polling.
 - Keep it vanilla JS. Verify tag balance + CSS classes when editing `public/`.
 
 ## Copy & social metadata (owner-locked)

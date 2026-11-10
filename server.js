@@ -5,12 +5,12 @@
 // small pins API so every visitor sees the same pins. Data lives in nightwatch-web.db (repo root; created on first boot, git-ignored).
 //
 //   GET    /api/pins       -> list all pins
-//   POST   /api/pins       -> add a pin  { lat, lng, size, color, sex?, notes?, seen_at? }
-//   PUT    /api/pins/:id   -> update a pin (seen_at is NOT changeable — set when logged)
+//   POST   /api/pins       -> add a pin  { lat, lng, size, color, sex?, collar?, notes?, seen_at? }
+//   PUT    /api/pins/:id   -> update a pin's NOTES ONLY (everything else is frozen once logged)
 //   DELETE /api/pins/:id   -> delete one pin
 //   GET    /api/health     -> { ok, pins }
 //
-// Security: size/color/sex are validated against canonical enums (stored-XSS safe),
+// Security: size/color/sex/collar are validated against canonical enums (stored-XSS safe),
 // hex is derived server-side from color, CORS is restricted to this site + localhost,
 // and mutating requests are rate-limited per IP (429 when exceeded).
 
@@ -42,27 +42,29 @@ db.exec(`
     color   TEXT NOT NULL,
     hex     TEXT NOT NULL DEFAULT '',
     sex     TEXT NOT NULL DEFAULT 'unknown',
+    collar  TEXT,
     notes   TEXT NOT NULL DEFAULT '',
     created INTEGER NOT NULL,
     seen_at INTEGER
   );
 `);
-// Migration: databases created before "seen at" existed — add the column.
+// Migration: databases created before newer columns existed — add them.
 {
   const cols = db.prepare('PRAGMA table_info(pins)').all().map(r => r.name);
   if (!cols.includes('seen_at')) db.exec('ALTER TABLE pins ADD COLUMN seen_at INTEGER');
+  if (!cols.includes('collar')) db.exec('ALTER TABLE pins ADD COLUMN collar TEXT');
 }
 const q = {
   all: db.prepare('SELECT * FROM pins ORDER BY created ASC'),
-  insert: db.prepare('INSERT INTO pins (id, lat, lng, size, color, hex, sex, notes, created, seen_at) VALUES (?,?,?,?,?,?,?,?,?,?)'),
-  update: db.prepare('UPDATE pins SET lat=?, lng=?, size=?, color=?, hex=?, sex=?, notes=? WHERE id=?'), // seen_at intentionally excluded — immutable after logging
+  insert: db.prepare('INSERT INTO pins (id, lat, lng, size, color, hex, sex, collar, notes, created, seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)'),
+  update: db.prepare('UPDATE pins SET notes=? WHERE id=?'), // notes is the ONLY updatable field — the sighting (lat/lng/size/color/sex/collar/seen_at) is frozen once logged
   remove: db.prepare('DELETE FROM pins WHERE id = ?'),
   count: db.prepare('SELECT COUNT(*) AS n FROM pins'),
 };
 
 // --- helpers --------------------------------------------------------------
 function toPin(r) {
-  return { id: r.id, lat: r.lat, lng: r.lng, size: r.size, color: r.color, hex: r.hex || '', sex: r.sex || 'unknown', notes: r.notes || '', created: r.created, seen_at: r.seen_at ?? null };
+  return { id: r.id, lat: r.lat, lng: r.lng, size: r.size, color: r.color, hex: r.hex || '', sex: r.sex || 'unknown', collar: r.collar || null, notes: r.notes || '', created: r.created, seen_at: r.seen_at ?? null };
 }
 // "seen at" — when the dog was actually seen. Epoch-ms (local-time instant) from the
 // client; accept numbers, numeric strings, or ISO strings; anything else -> NULL.
@@ -80,6 +82,7 @@ const CANON = {
   size:  ['Small', 'Medium', 'Large'],
   color: ['Black', 'Brown', 'White', 'Gray', 'Tan', 'Red'],
   sex:   ['Male', 'Female', 'Unknown'],
+  collar: ['Yes', 'No', 'Unknown'],
 };
 const COLOR_HEX = { Black: '#111318', Brown: '#6b4423', White: '#e9ecef', Gray: '#8a94a3', Tan: '#c9a06b', Red: '#c0392b' };
 // Case-insensitive match against a canonical list -> canonical value, or null.
@@ -95,7 +98,8 @@ function cleanPin(b) {
   const color = canon(b.color, CANON.color);
   if (!size || !color) return null;
   const sex = canon(b.sex, CANON.sex) || 'Unknown';
-  return { lat, lng, size, color, hex: COLOR_HEX[color], sex, notes: String(b.notes || '').slice(0, 2000), seen_at: toSeenAt(b.seen_at) };
+  const collar = canon(b.collar, CANON.collar); // optional — null when not reported
+  return { lat, lng, size, color, hex: COLOR_HEX[color], sex, collar, notes: String(b.notes || '').slice(0, 2000), seen_at: toSeenAt(b.seen_at) };
 }
 function jerr(res, code, msg) { return res.status(code).json({ error: msg }); }
 
@@ -157,24 +161,19 @@ app.post('/api/pins', (req, res) => {
   p.id = crypto.randomUUID();
   p.created = Date.now();
   try {
-    q.insert.run(p.id, p.lat, p.lng, p.size, p.color, p.hex, p.sex, p.notes, p.created, p.seen_at);
+    q.insert.run(p.id, p.lat, p.lng, p.size, p.color, p.hex, p.sex, p.collar, p.notes, p.created, p.seen_at);
     res.status(201).json({ id: p.id, created: p.created });
   } catch (e) { jerr(res, 500, 'db write failed'); }
 });
 
 app.put('/api/pins/:id', (req, res) => {
   const b = req.body || {};
-  const lat = Number(b.lat), lng = Number(b.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return jerr(res, 400, 'invalid lat/lng');
-  const size = canon(b.size, CANON.size);
-  const color = canon(b.color, CANON.color);
-  if (!size || !color) return jerr(res, 400, 'size and color are required (Small/Medium/Large; Black/Brown/White/Gray/Tan/Red)');
-  const sex = canon(b.sex, CANON.sex) || 'Unknown';
+  // Once a sighting is logged it is frozen: lat/lng/size/color/sex/collar/seen_at all
+  // stay exactly as reported (anything in the request for them is ignored). The only
+  // field editable afterwards is `notes` — delete the pin to change the sighting itself.
   const notes = String(b.notes || '').slice(0, 2000);
-  // seen_at is deliberately NOT updatable: it is set when the sighting was logged
-  // (POST) and the stored value is preserved — any seen_at in the request is ignored.
   try {
-    const n = q.update.run(lat, lng, size, color, COLOR_HEX[color], sex, notes, req.params.id).changes;
+    const n = q.update.run(notes, req.params.id).changes;
     if (!n) return jerr(res, 404, 'pin not found');
     res.json({ ok: true, id: req.params.id });
   } catch (e) { jerr(res, 500, 'db update failed'); }
