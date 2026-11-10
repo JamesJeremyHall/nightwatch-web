@@ -248,7 +248,7 @@
       +'<div class="formrow"><label>Size</label><div class="seggroup" data-group="size">'+sBtn('Small')+sBtn('Medium')+sBtn('Large')+'</div></div>'
       +'<div class="formrow"><label>Color</label><div class="swgroup">'+sw+'</div></div>'
       +'<div class="formrow"><label>Sex</label><div class="seggroup" data-group="sex">'+xBtn('Male')+xBtn('Female')+xBtn('Unknown')+'</div></div>'
-      +'<div class="formrow"><label>Seen at</label><input type="datetime-local" class="dt" value="'+toLocalInput(when)+'"></div>'
+      +'<div class="formrow"><label>Seen at</label><input type="datetime-local" class="dt" value="'+toLocalInput(when)+'"'+(isNew?'':' disabled title="Locked - set when the sighting was logged"')+'></div>'
       +'<div class="formrow"><label>Notes</label><textarea class="notes" placeholder="behavior, owner, etc.">'+notes.replace(/</g,'&lt;')+'</textarea></div>'
       +'<div class="formbtns">'
       +(isNew?'':'<button class="fb del">Delete</button>')
@@ -275,7 +275,7 @@
       ev.stopPropagation();
       const hex=(COLORS.find(c=>c.name===color)||COLORS[0]).hex;
       const notes=notesEl.value.trim();
-      const seenAt=dtMs(form.querySelector('.dt').value);
+      const seenAt=isNew?dtMs(form.querySelector('.dt').value):(pin.seen_at||null);
       try {
         if (isNew){
           const p={ lat:marker.getLatLng().lat, lng:marker.getLatLng().lng, size, color, hex, sex, notes, seen_at:seenAt };
@@ -283,7 +283,7 @@
           map.removeLayer(marker);
           await addPinApi(p);
         } else {
-          pin.size=size;pin.color=color;pin.hex=hex;pin.sex=sex;pin.notes=notes;pin.seen_at=seenAt;
+          pin.size=size;pin.color=color;pin.hex=hex;pin.sex=sex;pin.notes=notes;
           await savePinApi(pin);
         }
         map.closePopup();
