@@ -158,6 +158,30 @@ curl -fsS https://nightwatchaviation.com/api/health
 
 On a fresh box: install Node ≥ 22.5, clone the repo to `/opt/nightwatch-web`, `npm ci`, then install Caddy and create the `nightwatch` + `caddy` systemd units (Caddyfile: `reverse_proxy 127.0.0.1:3000` for the domain, `encode gzip`).
 
+### Nightly backups
+
+- `nightwatch-backup.timer` runs `backup.sh` every night at **23:45 America/New_York** (the box timezone is set to `America/New_York`, so 23:45 local is 23:45 ET year-round; DST handled by systemd).
+- Uses SQLite's **online backup API** (`sqlite3 .backup`) — safe while the server has the DB open; no file-copy races.
+- Output: `/opt/nightwatch-web/backups/<YYYYMMDD>.db` (date taken in ET). One file per day; **old files are not auto-deleted** (each is ~12 KB) — prune manually if it ever matters.
+- `Persistent=true`: if the box was off/restarting at 23:45, the missed backup runs on next boot.
+
+```bash
+sudo systemctl start nightwatch-backup.service      # run a backup now
+systemctl list-timers | grep -i nightwatch          # next scheduled fire
+journalctl -u nightwatch-backup.service -n 5        # last run log
+ls -lh /opt/nightwatch-web/backups/
+```
+
+Restore a specific day:
+
+```bash
+sudo systemctl stop nightwatch.service
+sudo cp -f /opt/nightwatch-web/backups/20261110.db /opt/nightwatch-web/nightwatch-web.db
+sudo systemctl start nightwatch.service
+```
+
+- `backup.sh` is versioned in the repo; the systemd units are host-local config in `/etc/systemd/system/nightwatch-backup.{service,timer}`. `backups/` is git-ignored.
+
 ## Confirmed facts (safe to use in copy)
 
 - Brand: **Nightwatch** (aviation line: "Nightwatch Aviation") — a tech-company site; aviation is a real supporting line
@@ -173,4 +197,4 @@ On a fresh box: install Node ≥ 22.5, clone the repo to `/opt/nightwatch-web`, 
 
 - SSH keys (`.pem`) — stay in `C:\projects\keys/` (or `~/.ssh/`), never in git
 - `nightwatch-web.db` + its `-wal`/`-shm`/`-journal` files (already git-ignored)
-- `node_modules/`, `*.log`, `*.bak` (already git-ignored)
+- `node_modules/`, `*.log`, `*.bak`, `backups/` (already git-ignored)
