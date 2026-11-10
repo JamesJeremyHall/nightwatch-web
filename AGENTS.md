@@ -50,12 +50,62 @@ All JSON. Served by `server.js`.
 
 Pin shape: `id, lat, lng, size (S/M/L text), color (name), hex, sex (male/female/unknown), notes, created (ms epoch)`.
 
+## How work ships (full-stack loop)
+
+The agent is **full-stack end to end**: the owner types an idea → the agent builds it, tests it, commits, pushes, deploys to EC2, and verifies it live. The owner does not run commands; nothing is "just a PR". Every change lands on production the same session.
+
+**Standard loop for any change:**
+
+1. **Read before editing.** Re-read the relevant file (`public/index.html`, `public/map.html`, `server.js`) — prior agent sessions' state is in the file, not in memory.
+2. **Edit.** Copy and interaction details are owner-confirmed (see "Copy & social metadata" below).
+3. **Test locally (no browser available — use the toolbelt):**
+   - JS syntax: extract the `<script>` block to a temp file, `node --check` it (see command quirk below).
+   - HTML sanity: confirm tag balance and that edited selectors/classes exist (grep).
+   - API: `npm start` → `curl` the endpoints on `http://localhost:3000` (`/api/health`, pin CRUD round-trip). `DELETE /api/pins` clears the **local** dev DB — production data is a separate file on the box and is never touched by local runs.
+4. **Commit + push.** One focused commit per change, clear message, `git push origin main`.
+5. **Deploy** (one command, from the repo dir on Windows — see quirk #1 for the PATH prefix):
+
+   ```powershell
+   $k='C:\projects\keys\NightwatchAvationEC2.pem'
+   ssh -o BatchMode=yes -i $k ubuntu@18.221.91.41 'cd /opt/nightwatch-web; git pull origin main 2>/dev/null; git log --oneline -1; curl -fsS http://localhost/api/health; true'
+   ```
+
+   Add `npm ci --no-audit --no-fund` + `sudo systemctl restart nightwatch` **only** when `package*.json` or `server.js` changed. Static `public/` changes need no restart (files are read per request; the DB file is untouched by `git pull`).
+6. **Verify live.** `curl -sk https://nightwatchaviation.com/<file>` and grep for the change (single-word patterns only — see quirk #4). Report the live commit hash back to the owner.
+
+## Windows shell quirks (learned the hard way)
+
+1. **PATH resets between commands.** Prefix every command that needs node/git/ssh:
+   `$env:Path=[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User'); …`
+2. **JS syntax check without a browser** (works from any Windows shell):
+   ```powershell
+   $html=[IO.File]::ReadAllText('<repo>\public\map.html')
+   $m=[regex]::Match($html,'(?s)<script>(.*)</script>')
+   [IO.File]::WriteAllText("$env:TEMP\check.js",$m.Groups[1].Value)
+   node --check "$env:TEMP\check.js"
+   ```
+3. **Backticks and `$` inside command strings can be mangled** by the command runner. Prefer single-quoted PowerShell strings, `\u0026` for literal `&` in Select-String patterns, or write a `.ps1`/`.sh` and run it.
+4. **Remote SSH one-liners:** multi-word `grep "a b c"` gets word-split by the remote shell (quotes are lost in transit). Grep single words. Pipe `; true` at the end of the remote command so non-zero grep exits don't fail the SSH call.
+5. `Set-Content`/`Expand-Archive` via this runner have bitten us before — prefer `cmd /c` or plain file writes when in doubt.
+6. **SSH key:** `C:\projects\keys\NightwatchAvationEC2.pem` (never in git). Use `-o BatchMode=yes` for non-interactive agent use.
+
 ## The map (locked-in spec — do not regress)
 
-- **Basemaps:** Esri World Street Map (default) + Esri World Imagery (satellite toggle). **Why:** OpenStreetMap public tiles 403/blank from this network, and the owner has no map API keys. Esri needs no key.
+- **Basemaps:** Esri World Imagery (satellite) + Esri World Street Map (streets), both via Esri ArcGIS tile service. **Why:** OpenStreetMap public tiles 403/blank from this network, and the owner has no map API keys. Esri needs no key.
+- **Default basemap is context-aware** (one `map.html` serves both modes, `embedded = window.self !== window.top`): **embedded on the main page → Satellite by default**; **full-screen map.html → Street by default**. A layer control offers both in either context, and if the default's tiles fail (e.g. 403), it auto-swaps to the other basemap with a status message.
 - **Center:** Bucyrus, Ohio `[40.808, -82.975]`
-- **Features (all built and working):** size + color + sex + notes selector, click-to-pin, pin list with per-pin delete + Clear-all (confirm), city search (Photon → Nominatim fallback), "use my location", satellite toggle, auto-fallback basemap, full-screen mode.
+- **Copy (owner-locked):** heading/lead "The live map."; hint "Click the map to report a lost dog sighting. A pop-up asks for size, color, sex and notes. Scroll through and tap on the reported sightings below to zoom in on the location."; status "Synced: N shared sightings"; header counter "lost dog sightings: N" (green, **right-justified** in the header, left of the ☰ button).
+- **Delete flow (owner-locked):** red **Delete** button inside the pin's popup. Clicking it swaps the popup row to an inline confirmation ("Delete this sighting?" / "Yes, delete" / "No") — **never a browser `confirm()` dialog** (it breaks the embed on the main page). New, unsaved pins show no Delete button. All popup button handlers call `stopPropagation()` so map clicks don't fire underneath.
+- **Pin hover tooltip:** `Size · Color · Sex` label with the **notes** shown below it (escaped, wrapped, max 230px); pins without notes show label only.
+- **Features (all built and working):** size + color + sex + notes selector, click-to-pin, pin list with zoom-on-tap, inline delete, city search (Photon → Nominatim fallback), "use my location", basemap toggle, auto-fallback basemap, full-screen mode, live shared-pin polling.
 - Keep it vanilla JS. Verify tag balance + CSS classes when editing `public/`.
+
+## Copy & social metadata (owner-locked)
+
+- All `<title>` and `og:` tags are unified to **"Nightwatch Software Division"** across `index.html` and `map.html`. Do not revert to "Aviation" titles.
+- `og:image` must be an **absolute URL** with a **cache-busting query string** (e.g. `?v=…`) — relative paths break Facebook share cards.
+- After changing `og:` tags, Facebook/Looker keeps cached scrapes: the owner clears them via the [Facebook Debugger](https://developers.facebook.com/tools/debug/) — that step is manual, human-only.
+- Copy strings the owner writes here are to be used **exactly** (punctuation, capitalization, phrasing) — no "improvements".
 
 ## Deployment (LIVE)
 
@@ -107,7 +157,7 @@ On a fresh box: install Node ≥ 22.5, clone the repo to `/opt/nightwatch-web`, 
 - Aviation pricing: real-estate **$500 / $850 / $1,500** · deer recovery **from $150** · search **by mission** · night ops **custom quote**
 - Services: real-estate fly-throughs · thermal deer recovery · animal/person search · business aerials · events · night ops
 - Videos (channel **@NightwatchAviationLLC**): `D_MhfdmTsPQ` · `t2eJcLNImnw` · `gN7vexa6H-w` · `UADR8nIvo_Y`
-- The dogs: **Kaia** the Nightwatch Husky · **Fancy** the Collie · **Chance** (the pup) — the owner's map pins
+
 
 ## Never commit
 
