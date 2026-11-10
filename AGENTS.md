@@ -43,12 +43,12 @@ All JSON. Served by `server.js`.
 |---|---|
 | `GET /api/health` | `{ ok, pins }` — liveness + pin count |
 | `GET /api/pins` | list all pins |
-| `POST /api/pins` | add a pin `{ lat, lng, size, color, hex?, sex?, notes? }` |
+| `POST /api/pins` | add a pin `{ lat, lng, size, color, hex?, sex?, notes?, seen_at? }` |
 | `PUT /api/pins/:id` | update a pin (same fields) |
 | `DELETE /api/pins/:id` | delete one pin |
 | `DELETE /api/pins` | clear all pins |
 
-Pin shape: `id, lat, lng, size (S/M/L text), color (name), hex, sex (male/female/unknown), notes, created (ms epoch)`.
+Pin shape: `id, lat, lng, size (S/M/L text), color (name), hex, sex (male/female/unknown), notes, created (ms epoch), seen_at (ms epoch — when the dog was actually seen; NULL for pins logged before that field existed, UI falls back to `created`)`.
 
 ## How work ships (full-stack loop)
 
@@ -96,8 +96,8 @@ The agent is **full-stack end to end**: the owner types an idea → the agent bu
 - **Center:** Bucyrus, Ohio `[40.808, -82.975]`
 - **Copy (owner-locked):** heading/lead "The live map."; hint "Click the map to report a lost dog sighting. A pop-up asks for size, color, sex and notes. Scroll through and tap on the reported sightings below to zoom in on the location."; status "Synced: N shared sightings"; header counter "lost dog sightings: N" (green, **right-justified** in the header, left of the ☰ button).
 - **Delete flow (owner-locked):** red **Delete** button inside the pin's popup. Clicking it swaps the popup row to an inline confirmation ("Delete this sighting?" / "Yes, delete" / "No") — **never a browser `confirm()` dialog** (it breaks the embed on the main page). New, unsaved pins show no Delete button. All popup button handlers call `stopPropagation()` so map clicks don't fire underneath.
-- **Pin hover tooltip:** `Size · Color · Sex` label with the **notes** shown below it (escaped, wrapped, max 230px); pins without notes show label only.
-- **Features (all built and working):** size + color + sex + notes selector, click-to-pin, pin list with zoom-on-tap, inline delete, city search (Photon → Nominatim fallback), "use my location", basemap toggle, auto-fallback basemap, full-screen mode, live shared-pin polling.
+- **Pin hover tooltip:** `Size · Color · Sex` label, **Seen at** date/time line below it (locale-formatted; legacy pins without `seen_at` fall back to `created`), then the **notes** (escaped, wrapped, max 230px); pins without notes show label + seen-at only. The pin list shows the same seen-at line under each label.
+- **Features (all built and working):** size + color + sex + seen-at date/time + notes selector, click-to-pin, pin list with zoom-on-tap, inline delete, city search (Photon → Nominatim fallback), "use my location", basemap toggle, auto-fallback basemap, full-screen mode, live shared-pin polling.
 - Keep it vanilla JS. Verify tag balance + CSS classes when editing `public/`.
 
 ## Copy & social metadata (owner-locked)

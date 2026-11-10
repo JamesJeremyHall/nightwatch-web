@@ -5,7 +5,8 @@
 // small pins API so every visitor sees the same pins. Data lives in nightwatch-web.db (repo root; created on first boot, git-ignored).
 //
 //   GET    /api/pins       -> list all pins
-//   POST   /api/pins       -> add a pin  { lat, lng, size, color, sex?, notes? }
+//   POST   /api/pins       -> add a pin  { lat, lng, size, color, sex?, notes?, seen_at? }
+//   PUT    /api/pins/:id   -> update a pin
 //   DELETE /api/pins/:id   -> delete one pin
 //   GET    /api/health     -> { ok, pins }
 
@@ -38,20 +39,35 @@ db.exec(`
     hex     TEXT NOT NULL DEFAULT '',
     sex     TEXT NOT NULL DEFAULT 'unknown',
     notes   TEXT NOT NULL DEFAULT '',
-    created INTEGER NOT NULL
+    created INTEGER NOT NULL,
+    seen_at INTEGER
   );
 `);
+// Migration: databases created before "seen at" existed — add the column.
+{
+  const cols = db.prepare('PRAGMA table_info(pins)').all().map(r => r.name);
+  if (!cols.includes('seen_at')) db.exec('ALTER TABLE pins ADD COLUMN seen_at INTEGER');
+}
 const q = {
   all: db.prepare('SELECT * FROM pins ORDER BY created ASC'),
-  insert: db.prepare('INSERT INTO pins (id, lat, lng, size, color, hex, sex, notes, created) VALUES (?,?,?,?,?,?,?,?,?)'),
-  update: db.prepare('UPDATE pins SET lat=?, lng=?, size=?, color=?, hex=?, sex=?, notes=? WHERE id=?'),
+  insert: db.prepare('INSERT INTO pins (id, lat, lng, size, color, hex, sex, notes, created, seen_at) VALUES (?,?,?,?,?,?,?,?,?,?)'),
+  update: db.prepare('UPDATE pins SET lat=?, lng=?, size=?, color=?, hex=?, sex=?, notes=?, seen_at=? WHERE id=?'),
   remove: db.prepare('DELETE FROM pins WHERE id = ?'),
   count: db.prepare('SELECT COUNT(*) AS n FROM pins'),
 };
 
 // --- helpers --------------------------------------------------------------
 function toPin(r) {
-  return { id: r.id, lat: r.lat, lng: r.lng, size: r.size, color: r.color, hex: r.hex || '', sex: r.sex || 'unknown', notes: r.notes || '', created: r.created };
+  return { id: r.id, lat: r.lat, lng: r.lng, size: r.size, color: r.color, hex: r.hex || '', sex: r.sex || 'unknown', notes: r.notes || '', created: r.created, seen_at: r.seen_at ?? null };
+}
+// "seen at" — when the dog was actually seen. Epoch-ms (local-time instant) from the
+// client; accept numbers, numeric strings, or ISO strings; anything else -> NULL.
+function toSeenAt(v) {
+  if (v === null || v === undefined || v === '') return null;
+  let ms = (typeof v === 'number') ? v : Date.parse(v);
+  if (!Number.isFinite(ms)) ms = Number(v);
+  if (!Number.isFinite(ms) || ms <= 0 || ms > 4102444800000) return null; // beyond year 2100
+  return Math.floor(ms);
 }
 function cleanPin(b) {
   const lat = Number(b.lat), lng = Number(b.lng);
@@ -61,7 +77,7 @@ function cleanPin(b) {
   if (!size || !color) return null;
   const hex = String(b.hex || '').slice(0, 16);
   const sex = String(b.sex || 'unknown').slice(0, 16);
-  return { lat, lng, size, color, hex, sex, notes: String(b.notes || '').slice(0, 2000) };
+  return { lat, lng, size, color, hex, sex, notes: String(b.notes || '').slice(0, 2000), seen_at: toSeenAt(b.seen_at) };
 }
 function jerr(res, code, msg) { return res.status(code).json({ error: msg }); }
 
@@ -89,7 +105,7 @@ app.post('/api/pins', (req, res) => {
   p.id = crypto.randomUUID();
   p.created = Date.now();
   try {
-    q.insert.run(p.id, p.lat, p.lng, p.size, p.color, p.hex, p.sex, p.notes, p.created);
+    q.insert.run(p.id, p.lat, p.lng, p.size, p.color, p.hex, p.sex, p.notes, p.created, p.seen_at);
     res.status(201).json({ id: p.id, created: p.created });
   } catch (e) { jerr(res, 500, 'db write failed'); }
 });
@@ -104,8 +120,9 @@ app.put('/api/pins/:id', (req, res) => {
   if (!size || !color) return jerr(res, 400, 'size and color are required');
   const sex = String(b.sex || 'unknown').slice(0, 16);
   const notes = String(b.notes || '').slice(0, 2000);
+  const seenAt = toSeenAt(b.seen_at);
   try {
-    const n = q.update.run(lat, lng, size, color, hex, sex, notes, req.params.id).changes;
+    const n = q.update.run(lat, lng, size, color, hex, sex, notes, seenAt, req.params.id).changes;
     if (!n) return jerr(res, 404, 'pin not found');
     res.json({ ok: true, id: req.params.id });
   } catch (e) { jerr(res, 500, 'db update failed'); }

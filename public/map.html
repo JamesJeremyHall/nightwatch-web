@@ -58,6 +58,10 @@
   .swatch.active{border-color:#fff;box-shadow:0 0 0 3px var(--accent)}
   .notes{width:100%;min-height:56px;resize:vertical;background:#05070d;color:var(--text);border:1px solid var(--border);border-radius:7px;padding:7px 8px;font-family:var(--body);font-size:12px}
   .notes:focus{outline:none;border-color:var(--accent)}
+  .dt{width:100%;background:#05070d;color:var(--text);border:1px solid var(--border);border-radius:7px;padding:7px 8px;font-family:var(--body);font-size:12px;color-scheme:dark}
+  .dt:focus{outline:none;border-color:var(--accent)}
+  .pinwhen{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px}
+  .leaflet-tooltip .pinwhen{margin-top:4px}
   .formbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:13px}
   .fb{padding:7px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;border-radius:7px;cursor:pointer;border:1px solid var(--border)}
   .fb.cancel{background:transparent;color:var(--dim)}
@@ -219,10 +223,23 @@
       html:'<div class="nw-pin" style="width:'+d+'px;height:'+d+'px;background:'+pin.hex+'"></div>'});
   }
   function label(pin){ return [pin.size, pin.color, pin.sex].filter(Boolean).join(' \u00b7 '); }
+  // "Seen at" — when the dog was actually observed (epoch ms). Legacy pins have no
+  // seen_at; fall back to the time the pin was created (when it was logged).
+  function whenOf(pin){ return (pin && (pin.seen_at || pin.created)) || null; }
+  function fmtWhen(ms){
+    if (!ms) return '';
+    return new Date(ms).toLocaleString(undefined,{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+  }
+  function toLocalInput(ms){
+    const d=new Date(ms), p=n=>String(n).padStart(2,'0');
+    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
+  }
+  function dtMs(v){ const t=v?new Date(v).getTime():NaN; return Number.isFinite(t)?t:null; }
   function formHTML(pin, isNew){
     const size=(pin&&pin.size)||'Medium';
     const color=(pin&&pin.color)||'Brown';
     const sex=(pin&&pin.sex)||'Unknown';
+    const when=whenOf(pin)||Date.now();
     const notes=(pin&&pin.notes)||'';
     const sw=COLORS.map(c=>'<span class="swatch'+(c.name===color?' active':'')+'" data-color="'+c.name+'" title="'+c.name+'" style="background:'+c.hex+'"></span>').join('');
     const sBtn=v=>'<button class="seg'+(size===v?' active':'')+'" data-size="'+v+'">'+v+'</button>';
@@ -231,6 +248,7 @@
       +'<div class="formrow"><label>Size</label><div class="seggroup" data-group="size">'+sBtn('Small')+sBtn('Medium')+sBtn('Large')+'</div></div>'
       +'<div class="formrow"><label>Color</label><div class="swgroup">'+sw+'</div></div>'
       +'<div class="formrow"><label>Sex</label><div class="seggroup" data-group="sex">'+xBtn('Male')+xBtn('Female')+xBtn('Unknown')+'</div></div>'
+      +'<div class="formrow"><label>Seen at</label><input type="datetime-local" class="dt" value="'+toLocalInput(when)+'"></div>'
       +'<div class="formrow"><label>Notes</label><textarea class="notes" placeholder="behavior, owner, etc.">'+notes.replace(/</g,'&lt;')+'</textarea></div>'
       +'<div class="formbtns">'
       +(isNew?'':'<button class="fb del">Delete</button>')
@@ -257,14 +275,15 @@
       ev.stopPropagation();
       const hex=(COLORS.find(c=>c.name===color)||COLORS[0]).hex;
       const notes=notesEl.value.trim();
+      const seenAt=dtMs(form.querySelector('.dt').value);
       try {
         if (isNew){
-          const p={ lat:marker.getLatLng().lat, lng:marker.getLatLng().lng, size, color, hex, sex, notes };
+          const p={ lat:marker.getLatLng().lat, lng:marker.getLatLng().lng, size, color, hex, sex, notes, seen_at:seenAt };
           draft=null;
           map.removeLayer(marker);
           await addPinApi(p);
         } else {
-          pin.size=size;pin.color=color;pin.hex=hex;pin.sex=sex;pin.notes=notes;
+          pin.size=size;pin.color=color;pin.hex=hex;pin.sex=sex;pin.notes=notes;pin.seen_at=seenAt;
           await savePinApi(pin);
         }
         map.closePopup();
@@ -312,7 +331,8 @@
     m.addTo(map);
     m.on('click',()=>attachForm(m,pin,false));
     m.on('dragend',async()=>{ pin.lat=m.getLatLng().lat; pin.lng=m.getLatLng().lng; try{ await savePinApi(pin); }catch(e){ setStatus('Could not move pin','err'); } });
-    const tip=label(pin)+(pin.notes?'<div class="pinnotes">'+pin.notes.replace(/</g,'&lt;')+'</div>':'');
+    const when=fmtWhen(whenOf(pin));
+    const tip=label(pin)+(when?'<div class="pinwhen">'+when+'</div>':'')+(pin.notes?'<div class="pinnotes">'+pin.notes.replace(/</g,'&lt;')+'</div>':'');
     m.bindTooltip(tip,{direction:'top',offset:[0,-10]});
     markers[pin.id]=m;
     return m;
@@ -335,6 +355,8 @@
       const meta=document.createElement('div'); meta.className='pinmeta';
       const lab=document.createElement('div'); lab.className='pinlabel'; lab.textContent=label(pin);
       meta.appendChild(lab);
+      const when=fmtWhen(whenOf(pin));
+      if (when){ const w=document.createElement('div'); w.className='pinwhen'; w.textContent=when; meta.appendChild(w); }
       if (pin.notes){ const nn=document.createElement('div'); nn.className='pinnote'; nn.textContent=pin.notes; meta.appendChild(nn); }
       const del=document.createElement('button'); del.className='del'; del.textContent='\u00d7'; del.title='Remove';
       del.addEventListener('click',async()=>{ try{ await removePinApi(pin.id); await loadPins(true); }catch(e){ setStatus('Could not delete pin','err'); } });
