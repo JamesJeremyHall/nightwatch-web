@@ -79,7 +79,7 @@ Browser ──HTTPS──▶ Caddy (80/443, auto-TLS via Let's Encrypt, gzip, ht
 
 ```
 .\ec2-login.ps1                  # Windows — interactive shell
-./ec2-login.sh                   # macOS/Linux
+./ec2-login.sh                   # macOS/Linux — interactive, lands in /opt/nightwatch-web
 .\ec2-login.ps1 "sudo systemctl status nightwatch"   # run one command
 ```
 

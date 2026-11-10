@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Nightwatch — EC2 login (Linux/macOS)
 #
-#   ./ec2-login.sh                              # interactive shell on the server
+#   ./ec2-login.sh                              # interactive shell, dropped into /opt/nightwatch-web
 #   ./ec2-login.sh "sudo systemctl status nightwatch"   # run one command
 #
 # Where the SSH key comes from (first match wins):
@@ -43,5 +43,8 @@ chmod 600 "$KEY" 2>/dev/null || true
 if [ "$#" -gt 0 ]; then
   exec ssh -i "$KEY" "$HOST" "$@"
 fi
-echo "Nightwatch EC2  ($HOST)  — type 'exit' to return." >&2
-exec ssh -i "$KEY" "$HOST"
+
+# interactive: land in the app root, not the (empty) home dir
+APP_DIR="/opt/nightwatch-web"
+echo "Nightwatch EC2 ($HOST) — landing in $APP_DIR; type 'exit' to return." >&2
+exec ssh -t -i "$KEY" "$HOST" "cd $APP_DIR && exec \$SHELL -l"
