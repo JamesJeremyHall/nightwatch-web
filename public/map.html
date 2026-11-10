@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Nightwatch Software Division</title>
-<meta name="description" content="Nightwatch Software Division — live dog-sighting map. Tap a location, log size, gender and color, and drop a pin where it was last seen. Sightings are shared with every visitor." />
+<meta name="description" content="Nightwatch Software Division — live dog-sighting map. Tap a location, log fur color, size, sex and collar, and drop a pin where it was last seen. Sightings are shared with every visitor." />
 <meta property="og:title" content="Nightwatch Software Division" />
-<meta property="og:description" content="Nightwatch Software Division — live dog-sighting map. Tap a location, log size, gender and color, and drop a pin where it was last seen." />
+<meta property="og:description" content="Nightwatch Software Division — live dog-sighting map. Tap a location, log fur color, size, sex and collar, and drop a pin where it was last seen." />
 <meta property="og:type" content="website" />
 <meta property="og:image" content="https://nightwatchaviation.com/assets/logo.png?v=osm20261109" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -116,7 +116,7 @@
     <button class="btn locate" id="locate">◎ Use my location</button>
     <button class="btn" id="refresh" title="Refresh shared pins now">⟳ Refresh</button>
     <h2>Logged</h2>
-    <p class="hint">Click the map to report a lost dog sighting. A pop-up asks for size, color, sex, collar and notes. Once a sighting is logged, only its notes can be edited (or the pin deleted). Scroll through and tap on the reported sightings below to zoom in on the location.</p>
+    <p class="hint">Click the map to report a lost dog sighting. A pop-up asks for fur color, size, sex, collar and notes. Once a sighting is logged, only its notes can be edited (or the pin deleted). Scroll through and tap on the reported sightings below to zoom in on the location.</p>
     <ul class="pins" id="pins"></ul>
     <div class="status" id="status">Map: Bucyrus, OH (default)</div>
   </div>
@@ -242,16 +242,16 @@
   function dtMs(v){ const t=v?new Date(v).getTime():NaN; return Number.isFinite(t)?t:null; }
   function formHTML(pin, isNew){
     if (isNew){
-      // New sighting: NOTHING is preselected (size/color/sex/collar all start blank) —
-      // the reporter must choose size, color and sex before saving. Collar is optional.
+      // New sighting: NOTHING is preselected (fur color/size/sex/collar all start blank) —
+      // all four must be chosen before saving; only notes may be empty. Fur color comes first.
       const sw=COLORS.map(c=>'<span class="swatch" data-color="'+c.name+'" title="'+c.name+'" style="background:'+c.hex+'"></span>').join('');
       const sBtn=v=>'<button class="seg" data-size="'+v+'">'+v+'</button>';
       const xBtn=v=>'<button class="seg" data-sex="'+v+'">'+v+'</button>';
       const cBtn=v=>'<button class="seg" data-collar="'+v+'">'+v+'</button>';
       return '<div class="dogform">'
         +'<div class="formttl">Report lost dog sighting</div>'
+        +'<div class="formrow"><label>Fur color</label><div class="swgroup">'+sw+'</div></div>'
         +'<div class="formrow"><label>Size</label><div class="seggroup" data-group="size">'+sBtn('Small')+sBtn('Medium')+sBtn('Large')+'</div></div>'
-        +'<div class="formrow"><label>Color</label><div class="swgroup">'+sw+'</div></div>'
         +'<div class="formrow"><label>Sex</label><div class="seggroup" data-group="sex">'+xBtn('Male')+xBtn('Female')+xBtn('Unknown')+'</div></div>'
         +'<div class="formrow"><label>Has a collar?</label><div class="seggroup" data-group="collar">'+cBtn('Yes')+cBtn('No')+cBtn('Unknown')+'</div></div>'
         +'<div class="formrow"><label>Seen at</label><input type="datetime-local" class="dt" value="'+toLocalInput(Date.now())+'"></div>'
@@ -263,7 +263,7 @@
     // read-only; the only editable field is notes (delete the pin to change the sighting).
     return '<div class="dogform">'
       +'<div class="lockedhint">Logged — sighting details are locked. Only the notes can be edited (delete the pin to change the sighting).</div>'
-      +'<div class="formrow"><label>Size · Color · Sex</label><div class="ro">'+pin.size+' · '+pin.color+' · '+(pin.sex||'Unknown')+'</div></div>'
+      +'<div class="formrow"><label>Fur color · Size · Sex</label><div class="ro">'+pin.size+' · '+pin.color+' · '+(pin.sex||'Unknown')+'</div></div>'
       +'<div class="formrow"><label>Has a collar?</label><div class="ro">'+(pin.collar||'—')+'</div></div>'
       +'<div class="formrow"><label>Seen at</label><input type="datetime-local" class="dt" value="'+toLocalInput(whenOf(pin)||Date.now())+'" disabled title="Locked - set when the sighting was logged"></div>'
       +'<div class="formrow"><label>Notes</label><textarea class="notes" placeholder="behavior, owner, etc.">'+((pin.notes)||'').replace(/</g,'&lt;')+'</textarea></div>'
@@ -278,9 +278,9 @@
     const form=holder.firstElementChild;
 
     if (isNew){
-      // Nothing is preselected: size, color and sex must be picked before saving;
-      // collar is optional (left blank -> not reported -> stored as null). Missing
-      // required fields blink a red highlight (no text message) and clear when chosen.
+      // Nothing is preselected: fur color, size, sex and collar must all be picked
+      // before saving (only notes may be empty). Missing required fields blink a red
+      // highlight (no text message) and clear when chosen.
       let size='', color='', sex='', collar='';
       const grp=name=>form.querySelectorAll('[data-group="'+name+'"] .seg');
       const groupEl=name=> name==='color' ? form.querySelector('.swgroup') : form.querySelector('[data-group="'+name+'"]');
@@ -298,6 +298,7 @@
         if(!size) missing.push('size');
         if(!color) missing.push('color');
         if(!sex) missing.push('sex');
+        if(!collar) missing.push('collar');
         if(missing.length){
           missing.forEach(name=>{ // blink a red box around each un-chosen field (re-triggers if already flagged)
             const g=groupEl(name);
