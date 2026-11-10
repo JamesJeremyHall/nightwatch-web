@@ -25,7 +25,7 @@
   .controls h2{margin:0 0 8px;font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
   .hint{margin:0 0 8px;font-size:11px;line-height:1.5;color:var(--dim)}
   .pins{list-style:none;margin:0;max-height:220px;overflow:auto;padding:0;font-size:12px}
-  .pins li{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--border)}
+  .pins li{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--border);cursor:pointer}
   .dot{flex:none;width:12px;height:12px;border-radius:50%;margin-top:2px}
   .pinmeta{min-width:0;flex:1}
   .pinlabel{font-family:var(--mono);font-size:11px}
@@ -293,6 +293,17 @@
       if (pin.notes){ const nn=document.createElement('div'); nn.className='pinnote'; nn.textContent=pin.notes; meta.appendChild(nn); }
       const del=document.createElement('button'); del.className='del'; del.textContent='\u00d7'; del.title='Remove';
       del.addEventListener('click',async()=>{ try{ await removePinApi(pin.id); await loadPins(true); }catch(e){ setStatus('Could not delete pin','err'); } });
+      li.title='Focus map on this dog';
+      li.addEventListener('click',(ev)=>{
+        if (ev.target.closest('.del')) return;           // let the remove button do its own thing
+        const m=markers[pin.id];
+        if (!m) return;
+        const open=()=>attachForm(m,pin,false);
+        if (map.getZoom()>=15 && map.getBounds().contains([pin.lat,pin.lng])){ open(); return; }  // already framed
+        map.closePopup();
+        map.once('moveend',open);
+        map.flyTo([pin.lat,pin.lng],16,{duration:.6,easeLinearity:.25});
+      });
       li.append(dot,meta,del); ul.appendChild(li);
     });
   }
