@@ -18,7 +18,8 @@
   .logo{height:28px;width:auto;display:block;flex:none}
   header h1{min-width:0;margin:0;font-family:"Space Grotesk",var(--body);font-weight:600;font-size:clamp(11px,3.4vw,15px);letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #map{flex:1;min-height:340px}
-  .controls{position:absolute;z-index:1000;top:12px;right:12px;width:240px;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;backdrop-filter:blur(6px)}
+  .controls{position:fixed;z-index:1500;top:58px;right:14px;width:min(330px,calc(100vw - 28px));max-height:calc(100vh - 80px);overflow:auto;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;backdrop-filter:blur(6px);display:none;box-shadow:0 18px 44px rgba(0,0,0,.55)}
+  .controls.open{display:block}
   .controls h2{margin:0 0 8px;font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
   .hint{margin:0 0 8px;font-size:11px;line-height:1.5;color:var(--dim)}
   .pins{list-style:none;margin:0;max-height:220px;overflow:auto;padding:0;font-size:12px}
@@ -65,15 +66,12 @@
   .status.err{color:#e0a13b}
   .sightings{margin-left:auto;flex:none;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--green);white-space:nowrap}
   .sightings b{font-weight:700}
-  .menuBtn{display:none;flex:none;width:38px;height:32px;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:17px;line-height:1;cursor:pointer}
+  .menuBtn{display:inline-flex;flex:none;width:38px;height:32px;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:17px;line-height:1;cursor:pointer}
   .menuBtn:hover{border-color:var(--accent);color:#fff}
   @media (max-width:760px){
     header{padding:8px 10px}
     header h1{font-size:11px}
-    .menuBtn{display:inline-flex}
     .sightings{font-size:10px;letter-spacing:.03em}
-    .controls{position:fixed;top:58px;right:10px;z-index:1500;width:min(340px,calc(100vw - 20px));max-height:calc(100vh - 74px);overflow:auto;display:none;box-shadow:0 18px 44px rgba(0,0,0,.55)}
-    .controls.open{display:block}
   }
 </style>
 </head>
