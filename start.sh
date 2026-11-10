@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Nightwatch - start the server (detached). Idempotent: safe to run repeatedly.
+# Nightwatch — start the server (detached). Idempotent: safe to run repeatedly.
 #
-#     ./start.sh              # live: binds 0.0.0.0:80  ->  http://nightwatchaviation.com/
-#     PORT=3000 ./start.sh    # local dev: binds 0.0.0.0:3000
+#     ./start.sh             # binds 0.0.0.0:3000  ->  http://localhost:3000/
+#     PORT=4000 ./start.sh   # different port
 #
 set -uo pipefail
 cd "$(dirname "$0")"
 
 HOST="${HOST:-0.0.0.0}"
-PORT="${PORT:-80}"
+PORT="${PORT:-3000}"
 PIDFILE="./nightwatch-web.pid"
 OUTLOG="./nightwatch-web.out.log"
 ERRLOG="./nightwatch-web.err.log"
@@ -30,7 +30,6 @@ echo "$NW" > "$PIDFILE"
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
     echo "    up.   PID $NW"
-    echo "    http://localhost:${PORT}/   |   http://nightwatchaviation.com/"
     exit 0
   fi
   kill -0 "$NW" 2>/dev/null || break
@@ -39,6 +38,4 @@ done
 
 echo "    FAILED to come up. Last log lines:" >&2
 tail -n 25 "$ERRLOG" 2>/dev/null || true
-echo "    Hint: if you see 'EACCES' binding to the port, run:" >&2
-echo "      sudo setcap 'cap_net_bind_service=+ep' \$(which node)" >&2
 exit 1
