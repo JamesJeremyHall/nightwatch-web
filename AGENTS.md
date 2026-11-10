@@ -2,6 +2,8 @@
 
 > Read this first. It is the source of truth for anyone (human or AI) touching this repo.
 
+**Hard rule (project boundaries):** Nightwatch is its own standalone project, separate from the Robin project ("projects folder"). **Working on Nightwatch (this repo) excludes the projects folder in all cases** — never read, edit, reference, or mention it. **Conversely, working inside the projects folder excludes Nightwatch in all cases.** Never cross-contaminate: no shared files, no cross-project references in code, docs, or conversation, and never frame Nightwatch work around Robin or his project.
+
 **Hard rule:** only state facts the owner confirmed. Never invent statistics, years, credentials, affiliations, or capabilities. If it isn't here or owner-provided, it doesn't exist.
 
 ## What this is
