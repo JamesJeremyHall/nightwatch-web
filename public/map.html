@@ -103,6 +103,20 @@
   //       1x1 empty tiles in bursts), so a no-key Esri street basemap is used instead.
   //       If you have a self-hosted OSM tile set or a MapTiler/Stadia key, swap the URL above.
   const map = L.map('map').setView([40.808, -82.975], 15);   // Bucyrus, Crawford County, OH
+  // --- Embedded mode: when iframed into the main page, skip geolocation and the
+  // --- Bucyrus default; as soon as pins load, fit the view to all logged dogs.
+  const embedded = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+  let embeddedFitted = false;
+  function fitToDogs(){
+    if (!embedded || embeddedFitted) return;
+    const pts = pins.filter(p => p.lat != null && p.lng != null).map(p => [p.lat, p.lng]);
+    if (!pts.length) return;
+    const b = L.latLngBounds(pts);
+    if (!b.isValid()) return;
+    map.fitBounds(b, { paddingTopLeft: L.point(30, 70), paddingBottomRight: L.point(30, 60), maxZoom: 16 });
+    if (refMarker) { map.removeLayer(refMarker); refMarker = null; }
+    embeddedFitted = true;
+  }
 
   const baseDark = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19,
@@ -156,6 +170,7 @@
     try {
       pins = await api('/api/pins');
       renderPins();
+      fitToDogs();
       if (announce) setStatus('Synced: ' + pins.length + ' shared logged dog' + (pins.length===1?'':'s'), 'ok');
     } catch (e) {
       if (announce) setStatus('Server unreachable — shared pins not loaded', 'err');
@@ -310,7 +325,7 @@
     },{enableHighAccuracy:highAccuracy,timeout:highAccuracy?20000:8000,maximumAge:60000});
   }
   document.getElementById('locate').addEventListener('click',locate);
-  locate();
+  if (!embedded) locate();
 
   // --- City search (Nominatim / OpenStreetMap geocoding, no API key) ---
   let searchMarker=null;
