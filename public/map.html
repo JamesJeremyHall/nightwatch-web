@@ -327,10 +327,9 @@
     marker.openPopup();
   }
   function addMarker(pin){
-    const m=L.marker([pin.lat,pin.lng],{icon:makeIcon(pin),draggable:true,opacity:.95});
+    const m=L.marker([pin.lat,pin.lng],{icon:makeIcon(pin),opacity:.95});
     m.addTo(map);
     m.on('click',()=>attachForm(m,pin,false));
-    m.on('dragend',async()=>{ pin.lat=m.getLatLng().lat; pin.lng=m.getLatLng().lng; try{ await savePinApi(pin); }catch(e){ setStatus('Could not move pin','err'); } });
     const when=fmtWhen(whenOf(pin));
     const tip=label(pin)+(when?'<div class="pinwhen">'+when+'</div>':'')+(pin.notes?'<div class="pinnotes">'+pin.notes.replace(/</g,'&lt;')+'</div>':'');
     m.bindTooltip(tip,{direction:'top',offset:[0,-10]});
