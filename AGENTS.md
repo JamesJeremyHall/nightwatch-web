@@ -83,7 +83,7 @@ Browser ──HTTPS──▶ Caddy (80/443, auto-TLS via Let's Encrypt, gzip, ht
 .\ec2-login.ps1 "sudo systemctl status nightwatch"   # run one command
 ```
 
-The scripts look for the SSH key at `C:\projects\keys\NightwatchAvationEC2.pem` (Windows) or `~/.ssh/nightwatch-ec2.pem` (macOS/Linux); override with `EC2_SSH_KEY`. The key file is **never** in this repo.
+The scripts look for the SSH key in this order: `EC2_SSH_KEY` → `~/.ssh/nightwatch-ec2.pem` → `C:\projects\keys\NightwatchAvationEC2.pem` (Windows, both Git Bash and WSL path forms). The key file is **never** in this repo.
 
 ### Deploying a change
 
