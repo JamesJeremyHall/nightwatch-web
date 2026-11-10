@@ -46,12 +46,18 @@ All JSON. Served by `server.js`.
 |---|---|
 | `GET /api/health` | `{ ok, pins }` — liveness + pin count |
 | `GET /api/pins` | list all pins |
-| `POST /api/pins` | add a pin `{ lat, lng, size, color, hex?, sex?, notes?, seen_at? }` |
-| `PUT /api/pins/:id` | update a pin (same fields) |
+| `POST /api/pins` | add a pin `{ lat, lng, size, color, sex?, notes?, seen_at? }` — enums validated, `hex` derived server-side from `color` |
+| `PUT /api/pins/:id` | update a pin (same fields) — **`seen_at` is not changeable** (stored value preserved) |
 | `DELETE /api/pins/:id` | delete one pin |
-| `DELETE /api/pins` | clear all pins |
 
-Pin shape: `id, lat, lng, size (S/M/L text), color (name), hex, sex (male/female/unknown), notes, created (ms epoch), seen_at (ms epoch — when the dog was actually seen; NULL for pins logged before that field existed, UI falls back to `created`)`.
+Pin shape: `id, lat, lng, size (Small/Medium/Large), color (Black/Brown/White/Gray/Tan/Red), hex (derived from color), sex (Male/Female/Unknown), notes, created (ms epoch), seen_at (ms epoch — when the dog was actually seen; NULL for pins logged before that field existed, UI falls back to `created`)`.
+
+**Abuse guardrails (owner-locked spec):**
+- `size`/`color`/`sex` are **validated against canonical enums** server-side (case-insensitive match, `400` otherwise) — this is also the stored-XSS guard, since the map renders these fields unescaped into tooltip HTML
+- `hex` is **derived server-side from `color`** — a client-supplied `hex` is ignored
+- CORS is restricted to `nightwatchaviation.com` + localhost (no more `Access-Control-Allow-Origin: *`); same-origin map requests are unaffected
+- Mutating requests are **rate-limited per IP** (10-min window): `POST`/`PUT` 20, `DELETE` 5 → `429` + `Retry-After`. Caddy front-proxies, so the server trusts loopback `X-Forwarded-For` to get the real client IP
+- These are **guardrails, not a wall** — there is no auth. If abuse ever becomes real, add lightweight auth (or a write-token)
 
 ## How work ships (full-stack loop)
 

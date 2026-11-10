@@ -6,9 +6,13 @@
 //
 //   GET    /api/pins       -> list all pins
 //   POST   /api/pins       -> add a pin  { lat, lng, size, color, sex?, notes?, seen_at? }
-//   PUT    /api/pins/:id   -> update a pin
+//   PUT    /api/pins/:id   -> update a pin (seen_at is NOT changeable — set when logged)
 //   DELETE /api/pins/:id   -> delete one pin
 //   GET    /api/health     -> { ok, pins }
+//
+// Security: size/color/sex are validated against canonical enums (stored-XSS safe),
+// hex is derived server-side from color, CORS is restricted to this site + localhost,
+// and mutating requests are rate-limited per IP (429 when exceeded).
 
 const path = require('node:path');
 const fs = require('node:fs');
@@ -51,7 +55,7 @@ db.exec(`
 const q = {
   all: db.prepare('SELECT * FROM pins ORDER BY created ASC'),
   insert: db.prepare('INSERT INTO pins (id, lat, lng, size, color, hex, sex, notes, created, seen_at) VALUES (?,?,?,?,?,?,?,?,?,?)'),
-  update: db.prepare('UPDATE pins SET lat=?, lng=?, size=?, color=?, hex=?, sex=?, notes=?, seen_at=? WHERE id=?'),
+  update: db.prepare('UPDATE pins SET lat=?, lng=?, size=?, color=?, hex=?, sex=?, notes=? WHERE id=?'), // seen_at intentionally excluded — immutable after logging
   remove: db.prepare('DELETE FROM pins WHERE id = ?'),
   count: db.prepare('SELECT COUNT(*) AS n FROM pins'),
 };
@@ -69,28 +73,76 @@ function toSeenAt(v) {
   if (!Number.isFinite(ms) || ms <= 0 || ms > 4102444800000) return null; // beyond year 2100
   return Math.floor(ms);
 }
+// Canonical pin values — single source of truth, mirrors the form in public/map.html.
+// size/color/sex are validated against these so no untrusted text (HTML, quotes, ...)
+// can ever be stored and later rendered unescaped in client-side HTML (stored-XSS safe).
+const CANON = {
+  size:  ['Small', 'Medium', 'Large'],
+  color: ['Black', 'Brown', 'White', 'Gray', 'Tan', 'Red'],
+  sex:   ['Male', 'Female', 'Unknown'],
+};
+const COLOR_HEX = { Black: '#111318', Brown: '#6b4423', White: '#e9ecef', Gray: '#8a94a3', Tan: '#c9a06b', Red: '#c0392b' };
+// Case-insensitive match against a canonical list -> canonical value, or null.
+function canon(v, list) {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  for (const a of list) if (a.toLowerCase() === s) return a;
+  return null;
+}
 function cleanPin(b) {
   const lat = Number(b.lat), lng = Number(b.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  const size = String(b.size || '').slice(0, 16);
-  const color = String(b.color || '').slice(0, 32);
+  const size = canon(b.size, CANON.size);
+  const color = canon(b.color, CANON.color);
   if (!size || !color) return null;
-  const hex = String(b.hex || '').slice(0, 16);
-  const sex = String(b.sex || 'unknown').slice(0, 16);
-  return { lat, lng, size, color, hex, sex, notes: String(b.notes || '').slice(0, 2000), seen_at: toSeenAt(b.seen_at) };
+  const sex = canon(b.sex, CANON.sex) || 'Unknown';
+  return { lat, lng, size, color, hex: COLOR_HEX[color], sex, notes: String(b.notes || '').slice(0, 2000), seen_at: toSeenAt(b.seen_at) };
 }
 function jerr(res, code, msg) { return res.status(code).json({ error: msg }); }
 
 // --- app ------------------------------------------------------------------
 const app = express();
 app.use(express.json());
+// CORS: only this site (and local dev) may call the API cross-origin.
+// Same-origin requests (the map is served from this same host) need no CORS at all.
+const ALLOWED_ORIGINS = new Set(['https://nightwatchaviation.com', 'http://nightwatchaviation.com', 'http://localhost:3000', 'http://127.0.0.1:3000']);
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+// Caddy (local) front-proxies all traffic, so trust loopback proxies for req.ip
+// to resolve to the real client IP (X-Forwarded-For) instead of 127.0.0.1.
+app.set('trust proxy', 'loopback');
+
+// Rate limit mutating requests per IP — the shared map has no auth, so this is
+// the guardrail against spam/abuse. In-memory; resets on restart (fine at this scale).
+const MUT_RATE = { windowMs: 10 * 60 * 1000, max: { POST: 20, PUT: 20, DELETE: 5 } };
+const mutHits = new Map();
+function rateLimitMutations(req, res, next) {
+  const limit = MUT_RATE.max[req.method];
+  if (!limit) return next();
+  const now = Date.now();
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  // Per-IP AND per-method buckets: exhausting the PUT quota must not lock out DELETEs.
+  const key = ip + ':' + req.method;
+  let hits = (mutHits.get(key) || []).filter(t => now - t < MUT_RATE.windowMs);
+  if (hits.length >= limit) {
+    res.setHeader('Retry-After', String(Math.ceil((MUT_RATE.windowMs - (now - hits[0])) / 1000)));
+    return res.status(429).json({ error: 'too many changes - try again in a few minutes' });
+  }
+  hits.push(now);
+  mutHits.set(key, hits);
+  if (mutHits.size > 10000) for (const [k, v] of mutHits) if (!v.some(t => now - t < MUT_RATE.windowMs)) mutHits.delete(k);
+  next();
+}
+app.use('/api/pins', (req, res, next) => rateLimitMutations(req, res, next));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, pins: q.count.get().n }));
 
@@ -101,7 +153,7 @@ app.get('/api/pins', (req, res) => {
 
 app.post('/api/pins', (req, res) => {
   const p = cleanPin(req.body || {});
-  if (!p) return jerr(res, 400, 'invalid pin: need numeric lat/lng, size, color');
+  if (!p) return jerr(res, 400, 'invalid pin: need numeric lat/lng, size (Small/Medium/Large), color (Black/Brown/White/Gray/Tan/Red)');
   p.id = crypto.randomUUID();
   p.created = Date.now();
   try {
@@ -114,15 +166,15 @@ app.put('/api/pins/:id', (req, res) => {
   const b = req.body || {};
   const lat = Number(b.lat), lng = Number(b.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return jerr(res, 400, 'invalid lat/lng');
-  const size = String(b.size || '').slice(0, 16);
-  const color = String(b.color || '').slice(0, 32);
-  const hex = String(b.hex || '').slice(0, 16);
-  if (!size || !color) return jerr(res, 400, 'size and color are required');
-  const sex = String(b.sex || 'unknown').slice(0, 16);
+  const size = canon(b.size, CANON.size);
+  const color = canon(b.color, CANON.color);
+  if (!size || !color) return jerr(res, 400, 'size and color are required (Small/Medium/Large; Black/Brown/White/Gray/Tan/Red)');
+  const sex = canon(b.sex, CANON.sex) || 'Unknown';
   const notes = String(b.notes || '').slice(0, 2000);
-  const seenAt = toSeenAt(b.seen_at);
+  // seen_at is deliberately NOT updatable: it is set when the sighting was logged
+  // (POST) and the stored value is preserved — any seen_at in the request is ignored.
   try {
-    const n = q.update.run(lat, lng, size, color, hex, sex, notes, seenAt, req.params.id).changes;
+    const n = q.update.run(lat, lng, size, color, COLOR_HEX[color], sex, notes, req.params.id).changes;
     if (!n) return jerr(res, 404, 'pin not found');
     res.json({ ok: true, id: req.params.id });
   } catch (e) { jerr(res, 500, 'db update failed'); }
