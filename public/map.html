@@ -14,7 +14,7 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;font-family:var(--body);background:var(--bg);color:var(--text);display:flex;flex-direction:column}
-  header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);position:relative}
   .back{background:none;border:0;padding:0;margin:0;cursor:pointer;display:flex;align-items:center;flex:none}
   .back:hover .logo{filter:brightness(1.35)}
   .logo{height:28px;width:auto;display:block;flex:none}
@@ -66,13 +66,13 @@
   .status{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--dim)}
   .status.ok{color:var(--accent2)}
   .status.err{color:#e0a13b}
-  .sightings{margin-left:auto;flex:none;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--green);white-space:nowrap}
+  .sightings{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);flex:none;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--green);white-space:nowrap}
   .sightings b{font-weight:700}
   .menuBtn{display:inline-flex;flex:none;width:38px;height:32px;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:17px;line-height:1;cursor:pointer}
   .menuBtn:hover{border-color:var(--accent);color:#fff}
   @media (max-width:760px){
     header{padding:8px 10px}
-    header h1{font-size:11px}
+    header h1{font-size:11px;max-width:34vw}
     .sightings{font-size:10px;letter-spacing:.03em}
   }
 </style>
