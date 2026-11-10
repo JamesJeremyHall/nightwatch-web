@@ -103,36 +103,6 @@
     }
   });
 
-  /* ---------- Quote form (no backend: show confirmation + mailto fallback) ---------- */
-  var form = document.getElementById("quote-form");
-  if (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      var name = (form.querySelector("#f-name") || {}).value || "";
-      var phone = (form.querySelector("#f-phone") || {}).value || "";
-      var type = (form.querySelector("#f-type") || {}).value || "";
-      var msg = (form.querySelector("#f-msg") || {}).value || "";
-
-      // Basic validation
-      var ok = true;
-      [form.querySelector("#f-name"), form.querySelector("#f-phone"), form.querySelector("#f-type")].forEach(function (el) {
-        if (el && !el.value.trim()) { el.style.borderColor = "var(--warn)"; ok = false; }
-        else if (el) { el.style.borderColor = ""; }
-      });
-      if (!ok) return;
-
-      var okMsg = document.getElementById("form-success");
-      if (okMsg) okMsg.classList.add("show");
-      form.reset();
-
-      // Provide a one-click mailto as the actual delivery path
-      var subject = encodeURIComponent("Quote request, " + (type || "Nightwatch Aviation"));
-      var body = encodeURIComponent("Name: " + name + "\nPhone: " + phone + "\nService: " + type + "\n\nDetails:\n" + msg);
-      var mail = "mailto:flynightwatchav@gmail.com?subject=" + subject + "&body=" + body;
-      try { window.location.href = mail; } catch (err) { /* noop */ }
-    });
-  }
-
   /* ---------- Footer year ---------- */
   var yr = document.getElementById("year");
   if (yr) yr.textContent = new Date().getFullYear();
