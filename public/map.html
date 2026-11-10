@@ -51,6 +51,13 @@
   .formttl{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin-bottom:12px}
   .lockedhint{font-size:11px;line-height:1.5;color:var(--dim);margin-bottom:10px}
   .ro{font-family:var(--mono);font-size:12px}
+  .rotable{width:100%;border-collapse:collapse;margin:0 0 12px}
+  .rotable th,.rotable td{text-align:left;vertical-align:top;padding:6px 0;border-bottom:1px solid var(--border)}
+  .rotable tr:last-child th,.rotable tr:last-child td{border-bottom:0}
+  .rotable th{font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);font-weight:600;width:44%;padding-right:10px}
+  .rotable td{font-family:var(--mono);font-size:12px;color:var(--text)}
+  .rotable td .notes{min-height:44px}
+  .rosw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;border:1px solid rgba(255,255,255,.4)}
   .reqbad{border-radius:6px;animation:reqblink .38s ease-in-out 3}
   @keyframes reqblink{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,0)}50%{box-shadow:0 0 0 2px rgba(229,72,77,.95)}}
   .formrow{margin-bottom:11px}
@@ -227,7 +234,12 @@
     return L.divIcon({className:'', iconSize:[d,d], iconAnchor:[d/2,d/2],
       html:'<div class="nw-pin" style="width:'+d+'px;height:'+d+'px;background:'+pin.hex+'"></div>'});
   }
-  function label(pin){ return [pin.size, pin.color, pin.sex].filter(Boolean).join(' \u00b7 '); }
+  // Shared display label (pin list + hover tooltip): fur color · size · sex · collar —
+  // same order as the form, all fields shown (collar falls back to — on legacy pins).
+  function label(pin){
+    const base=[pin.color, pin.size, pin.sex].filter(Boolean).join(' \u00b7 ');
+    return (base?base+' \u00b7 ':'')+'collar: '+(pin.collar||'\u2014');
+  }
   // "Seen at" — when the dog was actually observed (epoch ms). Legacy pins have no
   // seen_at; fall back to the time the pin was created (when it was logged).
   function whenOf(pin){ return (pin && (pin.seen_at || pin.created)) || null; }
@@ -259,14 +271,20 @@
         +'<div class="formbtns"><button class="fb cancel">Cancel</button><button class="fb save">Save</button></div>'
         +'</div>';
     }
-    // Logged sighting: everything is frozen — size/color/sex/collar/seen-at are shown
-    // read-only; the only editable field is notes (delete the pin to change the sighting).
+    // Logged sighting: everything is frozen — fur color/size/sex/collar/seen-at are shown
+    // in a read-only two-column table (fur color first, matching the form); the only
+    // editable field is notes (delete the pin to change the sighting).
+    const when=fmtWhen(whenOf(pin));
     return '<div class="dogform">'
       +'<div class="lockedhint">Logged — sighting details are locked. Only the notes can be edited (delete the pin to change the sighting).</div>'
-      +'<div class="formrow"><label>Fur color · Size · Sex</label><div class="ro">'+pin.size+' · '+pin.color+' · '+(pin.sex||'Unknown')+'</div></div>'
-      +'<div class="formrow"><label>Has a collar?</label><div class="ro">'+(pin.collar||'—')+'</div></div>'
-      +'<div class="formrow"><label>Seen at</label><input type="datetime-local" class="dt" value="'+toLocalInput(whenOf(pin)||Date.now())+'" disabled title="Locked - set when the sighting was logged"></div>'
-      +'<div class="formrow"><label>Notes</label><textarea class="notes" placeholder="behavior, owner, etc.">'+((pin.notes)||'').replace(/</g,'&lt;')+'</textarea></div>'
+      +'<table class="rotable"><tbody>'
+      +'<tr><th>Fur color</th><td><i class="rosw" style="background:'+(pin.hex||'#8a94a3')+'"></i>'+(pin.color||'\u2014')+'</td></tr>'
+      +'<tr><th>Size</th><td>'+(pin.size||'\u2014')+'</td></tr>'
+      +'<tr><th>Sex</th><td>'+(pin.sex||'Unknown')+'</td></tr>'
+      +'<tr><th>Has a collar?</th><td>'+(pin.collar||'\u2014')+'</td></tr>'
+      +'<tr><th>Seen at</th><td>'+(when||'\u2014')+'</td></tr>'
+      +'<tr><th>Notes</th><td><textarea class="notes" placeholder="behavior, owner, etc.">'+((pin.notes)||'').replace(/</g,'&lt;')+'</textarea></td></tr>'
+      +'</tbody></table>'
       +'<div class="formbtns"><button class="fb del">Delete</button><button class="fb cancel">Cancel</button><button class="fb save">Save</button></div>'
       +'<div class="delconfirm" hidden><span>Delete this sighting?</span><button class="fb del yes">Yes, delete</button><button class="fb no">No</button></div>'
       +'</div>';
