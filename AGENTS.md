@@ -2,7 +2,7 @@
 
 > Read this first. It is the source of truth for anyone (human or AI) touching this repo.
 
-**Hard rule (project boundaries):** Nightwatch is its own standalone project, separate from the Robin project. The projects folder (containing `/robin`) lives at `projects/` inside this repo directory — `C:\projects\nightwatch-web\projects\`. **Working on Nightwatch (this repo) excludes the projects folder in all cases** — never read, edit, reference, mention, or commit anything inside it. **Conversely, working inside the projects folder excludes Nightwatch in all cases.** Never cross-contaminate: no shared files, no cross-project references in code, docs, or conversation, and never frame Nightwatch work around Robin or his project.
+**Hard rule (scope isolation):** This repo holds the live Nightwatch site **and** client/side projects under `projects/` (e.g. `projects/robin` — the project for client Robin). Both belong to this repo and are tracked and committed normally. But the work is scoped: an instruction given while working on **the site** applies **only to the site**, and an instruction given while working inside **a project** applies **only to that project**. Never let a change, convention, or copy rule cross that boundary in either direction — e.g. a site-wide text style change must never be applied to `projects/robin`, and a change requested for Robin's project must never touch the site.
 
 **Hard rule:** only state facts the owner confirmed. Never invent statistics, years, credentials, affiliations, or capabilities. If it isn't here or owner-provided, it doesn't exist.
 
@@ -31,6 +31,7 @@ Helpers (Linux/macOS/WSL): `./setup.sh` (one-time install + smoke test), `./star
 |---|---|
 | `public/` | **Web root — the only thing served.** `index.html`, `map.html`, `css/`, `js/`, `assets/` |
 | `server.js` | Express server: serves `public/` + the pins API |
+| `projects/` | Client/side projects (e.g. `robin/` — the project for client Robin). Part of this repo, tracked and committed like everything else; work on each stays scoped to it (see "scope isolation" rule above) |
 | `nightwatch-web.db` | SQLite DB (created on first boot, **git-ignored** — data lives on each machine/server) |
 | `ec2-login.ps1` / `ec2-login.sh` | One-command SSH into the production server |
 | `setup.sh` … `restart.sh` | Local start/stop helpers |
@@ -163,7 +164,6 @@ On a fresh box: install Node ≥ 22.5, clone the repo to `/opt/nightwatch-web`, 
 
 ## Never commit
 
-- The `projects/` folder (the Robin project, incl. `robin/`) — it lives inside this repo directory on some machines; it is **never** part of this repo and never to be committed (git-ignored as a safety net; see "project boundaries" above)
 - SSH keys (`.pem`) — stay in `C:\projects\keys/` (or `~/.ssh/`), never in git
 - `nightwatch-web.db` + its `-wal`/`-shm`/`-journal` files (already git-ignored)
 - `node_modules/`, `*.log`, `*.bak` (already git-ignored)
