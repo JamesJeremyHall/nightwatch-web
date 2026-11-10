@@ -24,6 +24,8 @@
   .back:hover .logo{filter:brightness(1.35)}
   .logo{height:28px;width:auto;display:block;flex:none}
   header h1{min-width:0;margin:0;font-family:"Space Grotesk",var(--body);font-weight:600;font-size:clamp(11px,3.4vw,15px);letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header h1#titleHome{cursor:pointer}
+  header h1#titleHome:hover{color:var(--accent)}
   #map{flex:1;min-height:340px}
   .controls{position:fixed;z-index:1500;top:58px;right:14px;width:min(330px,calc(100vw - 28px));max-height:calc(100vh - 80px);overflow:auto;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;backdrop-filter:blur(6px);display:none;box-shadow:0 18px 44px rgba(0,0,0,.55)}
   .controls.open{display:block}
@@ -92,7 +94,7 @@
     <button class="back" id="backBtn" type="button" aria-label="Back to home" title="Back to home">
       <img class="logo" src="assets/logo.png" alt="Nightwatch Aviation" />
     </button>
-    <h1>Nightwatch Software Division</h1>
+    <h1 id="titleHome" title="Back to home">Nightwatch Software Division</h1>
     <div class="sightings" id="sightings">lost dog sightings: <b id="countNum">0</b></div>
     <button class="menuBtn" id="menuBtn" aria-label="Toggle map controls" aria-expanded="false">☰</button>
   </header>
@@ -122,11 +124,12 @@
   // --- Full-screen mode: same one-shot fit to all existing sightings; only if
   // --- there are no pins do we fall back to the user's location / Bucyrus.
   const embedded = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
-  // --- The logo acts as the back button (full-screen only; inert when iframed into the main page) ---
-  if (!embedded) document.getElementById('backBtn').addEventListener('click', () => {
-    if (history.length > 1) history.back();
-    else window.location.href = 'index.html';
-  });
+  // --- Logo + title act as back buttons (full-screen only; inert when iframed into the main page) ---
+  if (!embedded){
+    const goHome=()=>{ if (history.length > 1) history.back(); else window.location.href = 'index.html'; };
+    document.getElementById('backBtn').addEventListener('click', goHome);
+    document.getElementById('titleHome').addEventListener('click', goHome);
+  }
   let fitted = false;
   function fitToDogs(){
     if (fitted) return;
