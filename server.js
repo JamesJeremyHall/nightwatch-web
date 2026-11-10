@@ -2,7 +2,7 @@
 // Nightwatch — lightweight shared-pins backend.
 // Node.js + Express + SQLite (built-in `node:sqlite`, zero native deps).
 // Serves the static site (index.html / map.html / css / js / assets) AND a
-// small pins API so every visitor sees the same pins. Data lives in nightwatch-web.db (repo root; tracked in git).
+// small pins API so every visitor sees the same pins. Data lives in nightwatch-web.db (repo root; created on first boot, git-ignored).
 //
 //   GET    /api/pins       -> list all pins
 //   POST   /api/pins       -> add a pin  { lat, lng, size, color, sex?, notes? }

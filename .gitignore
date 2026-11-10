@@ -6,8 +6,12 @@ Thumbs.db
 # runtime artifacts (created by ./start.sh / ./stop.sh)
 nightwatch-web.pid
 
-# NOTE: nightwatch-web.db (SQLite) sits at the repo root and IS tracked on purpose.
-# It holds the shared pins and is committed so the data can be restored from git.
+# database (server.js creates it automatically on first boot; git-ignored to
+# avoid binary merge conflicts — pins live in the app, not in git)
+nightwatch-web.db
+nightwatch-web.db-journal
+nightwatch-web.db-wal
+nightwatch-web.db-shm
 
 # local backups (do not commit)
 *.bak
