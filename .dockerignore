@@ -1,0 +1,17 @@
+node_modules
+nightwatch-web.db
+nightwatch-web.db-wal
+nightwatch-web.db-shm
+*.log
+.git
+.gitattributes
+.nvmrc
+Dockerfile
+.dockerignore
+ec2-login.*
+setup.sh
+start.sh
+stop.sh
+status.sh
+restart.sh
+AGENTS.md
