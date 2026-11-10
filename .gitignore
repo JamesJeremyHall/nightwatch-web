@@ -15,3 +15,6 @@ nightwatch-web.db-shm
 
 # local backups (do not commit)
 *.bak
+
+# nightly production backup output (EC2: /opt/nightwatch-web/backups/)
+backups/
