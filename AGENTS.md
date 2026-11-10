@@ -21,15 +21,6 @@ npm run dev        # same, with auto-reload
 
 Requires Node ≥ 22.5 (the `node:sqlite` module; `.nvmrc` pins 22). `PORT` / `HOST` env vars override the defaults (3000 / 0.0.0.0).
 
-**Docker (deploy anywhere):**
-
-```
-docker build -t nightwatch .
-docker run -d -p 3000:3000 -v nightwatch-data:/data nightwatch
-```
-
-Pins persist in the `/data` volume (`DB_PATH` env var points the app at it); the image itself is stateless.
-
 Helpers (Linux/macOS/WSL): `./setup.sh` (one-time install + smoke test), `./start.sh`, `./stop.sh`, `./status.sh`, `./restart.sh`. All local scripts are gitignored-safe and idempotent.
 
 ## Repo layout
