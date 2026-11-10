@@ -6,7 +6,6 @@
 //
 //   GET    /api/pins       -> list all pins
 //   POST   /api/pins       -> add a pin  { lat, lng, size, color, sex?, notes? }
-//   DELETE /api/pins       -> clear all pins
 //   DELETE /api/pins/:id   -> delete one pin
 //   GET    /api/health     -> { ok, pins }
 
@@ -47,7 +46,6 @@ const q = {
   insert: db.prepare('INSERT INTO pins (id, lat, lng, size, color, hex, sex, notes, created) VALUES (?,?,?,?,?,?,?,?,?)'),
   update: db.prepare('UPDATE pins SET lat=?, lng=?, size=?, color=?, hex=?, sex=?, notes=? WHERE id=?'),
   remove: db.prepare('DELETE FROM pins WHERE id = ?'),
-  clear: db.prepare('DELETE FROM pins'),
   count: db.prepare('SELECT COUNT(*) AS n FROM pins'),
 };
 
@@ -111,11 +109,6 @@ app.put('/api/pins/:id', (req, res) => {
     if (!n) return jerr(res, 404, 'pin not found');
     res.json({ ok: true, id: req.params.id });
   } catch (e) { jerr(res, 500, 'db update failed'); }
-});
-
-app.delete('/api/pins', (req, res) => {
-  try { res.json({ ok: true, removed: q.clear.run().changes }); }
-  catch (e) { jerr(res, 500, 'db clear failed'); }
 });
 
 app.delete('/api/pins/:id', (req, res) => {
