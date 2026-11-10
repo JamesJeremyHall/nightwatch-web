@@ -3,6 +3,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# runtime artifacts (created by ./start.sh / ./stop.sh)
+nightwatch-web.pid
+
 # NOTE: nightwatch-web.db (SQLite) sits at the repo root and IS tracked on purpose.
 # It holds the shared pins and is committed so the data can be restored from git.
 

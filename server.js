@@ -131,6 +131,24 @@ app.delete('/api/pins/:id', (req, res) => {
 app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 app.use((req, res) => res.status(404).type('text/plain').send('Not found'));
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`[nightwatch] map + shared pins API -> http://localhost:${PORT}  (db: ${DB_PATH})`);
 });
+
+// Graceful shutdown — lets `./stop.sh` (SIGTERM) and Ctrl+C (SIGINT) drain
+// open connections instead of hard-killing mid-request.
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[nightwatch] ${signal} received, draining connections and closing...`);
+  server.close(() => {
+    try { db.close(); } catch (_) {}
+    console.log('[nightwatch] closed cleanly. bye.');
+    process.exit(0);
+  });
+  // safety net: force-exit if connections refuse to drain
+  setTimeout(() => process.exit(1), 8000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

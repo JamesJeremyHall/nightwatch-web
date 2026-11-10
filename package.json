@@ -6,6 +6,7 @@
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
+    "setup": "bash setup.sh",
     "start": "node server.js",
     "dev": "node --watch server.js"
   },
