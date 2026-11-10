@@ -61,6 +61,10 @@
   .fb.cancel{background:transparent;color:var(--dim)}
   .fb.cancel:hover{color:#fff;border-color:var(--accent)}
   .fb.save{background:var(--accent);border-color:var(--accent);color:#04101f;font-weight:600}
+  .fb.del{background:#3a1214;border-color:rgba(255,92,92,.45);color:#ff9d9d}
+  .fb.del:hover{background:#4d1618;border-color:#ff5c5c;color:#ffb3b3}
+  .delconfirm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:13px;font-size:12px;color:var(--text)}
+  .delconfirm[hidden]{display:none}
   .btn.locate{color:var(--accent2);margin-top:0;margin-bottom:10px}
   .btn.locate:hover{background:var(--accent);color:#04101f;border-color:var(--accent)}
   .search{display:flex;gap:6px;margin-bottom:10px}
@@ -208,7 +212,7 @@
       html:'<div class="nw-pin" style="width:'+d+'px;height:'+d+'px;background:'+pin.hex+'"></div>'});
   }
   function label(pin){ return [pin.size, pin.color, pin.sex].filter(Boolean).join(' \u00b7 '); }
-  function formHTML(pin){
+  function formHTML(pin, isNew){
     const size=(pin&&pin.size)||'Medium';
     const color=(pin&&pin.color)||'Brown';
     const sex=(pin&&pin.sex)||'Unknown';
@@ -221,7 +225,10 @@
       +'<div class="formrow"><label>Color</label><div class="swgroup">'+sw+'</div></div>'
       +'<div class="formrow"><label>Sex</label><div class="seggroup" data-group="sex">'+xBtn('Male')+xBtn('Female')+xBtn('Unknown')+'</div></div>'
       +'<div class="formrow"><label>Notes</label><textarea class="notes" placeholder="behavior, owner, etc.">'+notes.replace(/</g,'&lt;')+'</textarea></div>'
-      +'<div class="formbtns"><button class="fb cancel">Cancel</button><button class="fb save">Save</button></div>'
+      +'<div class="formbtns">'
+      +(isNew?'':'<button class="fb del">Delete</button>')
+      +'<button class="fb cancel">Cancel</button><button class="fb save">Save</button></div>'
+      +(isNew?'':'<div class="delconfirm" hidden><span>Delete this sighting?</span><button class="fb del yes">Yes, delete</button><button class="fb no">No</button></div>')
       +'</div>';
   }
 
@@ -264,6 +271,31 @@
       map.closePopup();
       if (isNew){ map.removeLayer(marker); draft=null; }
     });
+
+    // Red Delete button + in-popup confirmation (existing pins only)
+    const delBtn=form.querySelector('.fb.del');
+    const delRow=form.querySelector('.delconfirm');
+    if (delBtn && delRow){
+      delBtn.addEventListener('click',ev=>{
+        ev.stopPropagation();
+        form.querySelector('.formbtns').style.display='none';
+        delRow.hidden=false;
+      });
+      delRow.querySelector('.no').addEventListener('click',ev=>{
+        ev.stopPropagation();
+        delRow.hidden=true;
+        form.querySelector('.formbtns').style.display='';
+      });
+      delRow.querySelector('.yes').addEventListener('click',async ev=>{
+        ev.stopPropagation();
+        try{
+          await removePinApi(pin.id);
+          map.closePopup();
+          map.removeLayer(marker);
+          await loadPins(true);
+        }catch(e){ setStatus('Could not delete pin','err'); }
+      });
+    }
 
     marker.bindPopup(form, { maxWidth:330, autoPan:true, closeButton:true });
     marker.openPopup();
