@@ -51,7 +51,8 @@
   .formttl{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin-bottom:12px}
   .lockedhint{font-size:11px;line-height:1.5;color:var(--dim);margin-bottom:10px}
   .ro{font-family:var(--mono);font-size:12px}
-  .formerr{margin-top:10px;font-family:var(--mono);font-size:11px;line-height:1.5;color:#e0a13b}
+  .reqbad{border-radius:6px;animation:reqblink .38s ease-in-out 3}
+  @keyframes reqblink{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,0)}50%{box-shadow:0 0 0 2px rgba(229,72,77,.95)}}
   .formrow{margin-bottom:11px}
   .formrow label{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
   .seggroup{display:flex;gap:5px}
@@ -255,7 +256,6 @@
         +'<div class="formrow"><label>Has a collar?</label><div class="seggroup" data-group="collar">'+cBtn('Yes')+cBtn('No')+cBtn('Unknown')+'</div></div>'
         +'<div class="formrow"><label>Seen at</label><input type="datetime-local" class="dt" value="'+toLocalInput(Date.now())+'"></div>'
         +'<div class="formrow"><label>Notes</label><textarea class="notes" placeholder="behavior, owner, etc."></textarea></div>'
-        +'<div class="formerr" hidden></div>'
         +'<div class="formbtns"><button class="fb cancel">Cancel</button><button class="fb save">Save</button></div>'
         +'</div>';
     }
@@ -279,16 +279,18 @@
 
     if (isNew){
       // Nothing is preselected: size, color and sex must be picked before saving;
-      // collar is optional (left blank -> not reported -> stored as null).
+      // collar is optional (left blank -> not reported -> stored as null). Missing
+      // required fields blink a red highlight (no text message) and clear when chosen.
       let size='', color='', sex='', collar='';
       const grp=name=>form.querySelectorAll('[data-group="'+name+'"] .seg');
-      const clearErr=()=>{ const e=form.querySelector('.formerr'); if (e) e.hidden=true; };
-      const pick=(name,set)=>grp(name).forEach(btn=>btn.addEventListener('click',ev=>{ev.stopPropagation();grp(name).forEach(b=>b.classList.remove('active'));btn.classList.add('active');set(btn.dataset[name]);clearErr();}));
+      const groupEl=name=> name==='color' ? form.querySelector('.swgroup') : form.querySelector('[data-group="'+name+'"]');
+      const clearBad=name=>{ const g=groupEl(name); if (g) g.classList.remove('reqbad'); };
+      const pick=(name,set)=>grp(name).forEach(btn=>btn.addEventListener('click',ev=>{ev.stopPropagation();grp(name).forEach(b=>b.classList.remove('active'));btn.classList.add('active');set(btn.dataset[name]);clearBad(name);}));
       pick('size',v=>size=v);
       pick('sex',v=>sex=v);
       pick('collar',v=>collar=v);
       const sws=form.querySelectorAll('.swgroup .swatch');
-      sws.forEach(s=>s.addEventListener('click',ev=>{ev.stopPropagation();sws.forEach(x=>x.classList.remove('active'));s.classList.add('active');color=s.dataset.color;clearErr();}));
+      sws.forEach(s=>s.addEventListener('click',ev=>{ev.stopPropagation();sws.forEach(x=>x.classList.remove('active'));s.classList.add('active');color=s.dataset.color;clearBad('color');}));
 
       form.querySelector('.save').addEventListener('click',async ev=>{
         ev.stopPropagation();
@@ -297,9 +299,10 @@
         if(!color) missing.push('color');
         if(!sex) missing.push('sex');
         if(missing.length){
-          const errEl=form.querySelector('.formerr');
-          errEl.textContent='Choose '+missing.join(', ')+' before saving.';
-          errEl.hidden=false;
+          missing.forEach(name=>{ // blink a red box around each un-chosen field (re-triggers if already flagged)
+            const g=groupEl(name);
+            if(g){ g.classList.remove('reqbad'); void g.offsetWidth; g.classList.add('reqbad'); }
+          });
           return;
         }
         const notes=form.querySelector('.notes').value.trim();
