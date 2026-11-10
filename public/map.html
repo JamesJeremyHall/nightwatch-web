@@ -126,18 +126,18 @@
     maxZoom: 19,
     attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
   });
-  baseSat.addTo(map);
+  baseDark.addTo(map);
 
-  // If the default (satellite) tiles get blocked (403, etc.), switch to street automatically.
+  // If the default (street) tiles get blocked (403, etc.), switch to satellite automatically.
   let fellBack = false;
-  baseSat.on('tileerror', function () {
+  baseDark.on('tileerror', function () {
     if (fellBack) return;
     fellBack = true;
-    if (map.hasLayer(baseDark)) map.removeLayer(baseDark);
-    map.removeLayer(baseSat);
-    baseDark.addTo(map);
+    if (map.hasLayer(baseSat)) map.removeLayer(baseSat);
+    map.removeLayer(baseDark);
+    baseSat.addTo(map);
     const s = document.getElementById('status');
-    if (s) { s.textContent = 'Satellite tiles unavailable, switched to street (Esri)'; s.className = 'status err'; }
+    if (s) { s.textContent = 'Street tiles unavailable, switched to satellite (Esri)'; s.className = 'status err'; }
   });
 
   L.control.layers({ 'Satellite': baseSat, 'Streets': baseDark }, null, { position: 'bottomleft' }).addTo(map);
