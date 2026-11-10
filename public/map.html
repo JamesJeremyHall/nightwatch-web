@@ -110,10 +110,10 @@
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-  // Base map: Esri World Street Map (reliable, no key, no OSM rate-limit).
-  // Default: Esri World Imagery (satellite). Alternate: Esri World Street Map.
+  // Base maps: Esri World Street Map + Esri World Imagery (no key, no OSM rate-limit).
+  // Default is context-based: satellite when embedded in the main page, street view full-screen.
   // NOTE: OpenStreetMap's public tiles were throttling/blanking this connection (returning
-  //       1x1 empty tiles in bursts), so a no-key Esri street basemap is used instead.
+  //       1x1 empty tiles in bursts), so a no-key Esri basemap is used instead.
   //       If you have a self-hosted OSM tile set or a MapTiler/Stadia key, swap the URL above.
   const map = L.map('map').setView([40.808, -82.975], 15);   // Bucyrus, Crawford County, OH
   // --- Embedded mode: when iframed into the main page, skip geolocation and the
@@ -146,18 +146,21 @@
     maxZoom: 19,
     attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
   });
-  baseDark.addTo(map);
+  // Embedded in the main page → default to satellite; full-screen map → default to street view.
+  const defaultBase = embedded ? baseSat : baseDark;
+  defaultBase.addTo(map);
 
-  // If the default (street) tiles get blocked (403, etc.), switch to satellite automatically.
+  // If the default tiles get blocked (403, etc.), switch to the other basemap automatically.
   let fellBack = false;
-  baseDark.on('tileerror', function () {
+  defaultBase.on('tileerror', function () {
     if (fellBack) return;
     fellBack = true;
-    if (map.hasLayer(baseSat)) map.removeLayer(baseSat);
-    map.removeLayer(baseDark);
-    baseSat.addTo(map);
+    const alt = embedded ? baseDark : baseSat;
+    if (map.hasLayer(alt)) map.removeLayer(alt);
+    map.removeLayer(defaultBase);
+    alt.addTo(map);
     const s = document.getElementById('status');
-    if (s) { s.textContent = 'Street tiles unavailable, switched to satellite (Esri)'; s.className = 'status err'; }
+    if (s) { s.textContent = (embedded ? 'Satellite tiles unavailable, switched to streets (Esri)' : 'Street tiles unavailable, switched to satellite (Esri)'); s.className = 'status err'; }
   });
 
   L.control.layers({ 'Satellite': baseSat, 'Streets': baseDark }, null, { position: 'bottomleft' }).addTo(map);
