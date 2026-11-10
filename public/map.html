@@ -182,7 +182,7 @@
       pins = await api('/api/pins');
       renderPins();
       fitToDogs();
-      if (announce) setStatus('Synced: ' + pins.length + ' shared logged dog' + (pins.length===1?'':'s'), 'ok');
+      if (announce) setStatus('Synced: ' + pins.length + ' shared dog sighting' + (pins.length===1?'':'s'), 'ok');
     } catch (e) {
       if (announce) setStatus('Server unreachable — shared pins not loaded', 'err');
     }
