@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nightwatch, Live Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root{
+    --bg:#05070d; --panel:rgba(10,17,28,.92); --border:rgba(86,145,255,.16);
+    --accent:#3b82f6; --accent2:#78abff; --text:#e9eff8; --dim:#93a4bd;
+    --mono:"JetBrains Mono",ui-monospace,monospace; --body:"Inter",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:var(--body);background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)}
+  .logo{height:28px;width:auto;display:block;flex:none}
+  header h1{min-width:0;margin:0;font-family:"Space Grotesk",var(--body);font-weight:600;font-size:clamp(11px,3.4vw,15px);letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #map{flex:1;min-height:340px}
+  .controls{position:absolute;z-index:1000;top:12px;right:12px;width:240px;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;backdrop-filter:blur(6px)}
+  .controls h2{margin:0 0 8px;font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
+  .hint{margin:0 0 8px;font-size:11px;line-height:1.5;color:var(--dim)}
+  .count{margin-bottom:6px;font-family:var(--mono);font-size:11px;color:var(--accent2)}
+  .pins{list-style:none;margin:0;max-height:220px;overflow:auto;padding:0;font-size:12px}
+  .pins li{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--border)}
+  .dot{flex:none;width:12px;height:12px;border-radius:50%;margin-top:2px}
+  .pinmeta{min-width:0;flex:1}
+  .pinlabel{font-family:var(--mono);font-size:11px}
+  .pinnote{font-size:11px;color:var(--dim);margin-top:2px;white-space:pre-wrap}
+  .del{margin-left:auto;align-self:flex-start;background:none;border:0;color:var(--dim);cursor:pointer;font-size:15px;line-height:1}
+  .btn{width:100%;margin-top:10px;padding:8px;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);background:transparent;border:1px solid var(--border);border-radius:8px;cursor:pointer}
+  .btn:hover{color:#fff;border-color:var(--accent)}
+  .leaflet-container{background:#05070d}
+  .nw-pin{border-radius:50%;border:2px solid rgba(255,255,255,.85);box-shadow:0 0 0 3px rgba(0,0,0,.4),0 2px 8px rgba(0,0,0,.6)}
+  .leaflet-tooltip{background:#0a111c;color:#e9eff8;border:1px solid var(--border);font-family:var(--mono);font-size:11px}
+  .leaflet-popup-content-wrapper{background:#0a111c;color:var(--text);border:1px solid var(--border);border-radius:10px}
+  .leaflet-popup-content{margin:14px;width:auto!important;line-height:1.4}
+  .leaflet-popup-tip{background:#0a111c}
+  .leaflet-container a.leaflet-popup-close-button{color:var(--dim)}
+  .dogform{min-width:238px}
+  .formrow{margin-bottom:11px}
+  .formrow label{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  .seggroup{display:flex;gap:5px}
+  .seg{flex:1;padding:7px 4px;font-size:11px;font-family:var(--mono);color:var(--dim);background:transparent;border:1px solid var(--border);border-radius:7px;cursor:pointer}
+  .seg.active{background:var(--accent);border-color:var(--accent);color:#04101f;font-weight:600}
+  .swgroup{display:flex;gap:8px;flex-wrap:wrap}
+  .swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.3)}
+  .swatch.active{border-color:#fff;box-shadow:0 0 0 3px var(--accent)}
+  .notes{width:100%;min-height:56px;resize:vertical;background:#05070d;color:var(--text);border:1px solid var(--border);border-radius:7px;padding:7px 8px;font-family:var(--body);font-size:12px}
+  .notes:focus{outline:none;border-color:var(--accent)}
+  .formbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:13px}
+  .fb{padding:7px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;border-radius:7px;cursor:pointer;border:1px solid var(--border)}
+  .fb.cancel{background:transparent;color:var(--dim)}
+  .fb.cancel:hover{color:#fff;border-color:var(--accent)}
+  .fb.save{background:var(--accent);border-color:var(--accent);color:#04101f;font-weight:600}
+  .overlay{position:fixed;inset:0;z-index:3000;background:rgba(3,6,12,.62);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center}
+  .overlay.show{display:flex}
+  .modal{width:340px;max-width:90vw;padding:24px;background:#0a111c;border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .modal h3{margin:0 0 8px;font-family:"Space Grotesk",var(--body);font-weight:600;font-size:17px}
+  .modal p{margin:0 0 20px;font-size:13px;color:var(--dim);line-height:1.55}
+  .modalbtns{display:flex;gap:10px;align-items:stretch}
+  .modalbtns .m{padding:12px 18px;font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;border-radius:9px;cursor:pointer;border:1px solid var(--border)}
+  .m.cancel{background:transparent;color:var(--dim)}
+  .m.cancel:hover{color:#fff;border-color:var(--accent)}
+  .m.confirm{flex:1;background:#e11d2b;border-color:#e11d2b;color:#fff;font-weight:600}
+  .m.confirm:hover{background:#ff2e3d}
+  .btn.locate{color:var(--accent2);margin-top:0;margin-bottom:10px}
+  .btn.locate:hover{background:var(--accent);color:#04101f;border-color:var(--accent)}
+  .search{display:flex;gap:6px;margin-bottom:10px}
+  .search input{flex:1;min-width:0;background:#05070d;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 9px;font-family:var(--body);font-size:12px}
+  .search input:focus{outline:none;border-color:var(--accent)}
+  .search .btn{width:auto;flex:none;margin:0;padding:8px 13px}
+  .search .btn:hover{background:var(--accent);color:#04101f}
+  .status{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--dim)}
+  .status.ok{color:var(--accent2)}
+  .status.err{color:#e0a13b}
+</style>
+</head>
+<body>
+  <header>
+    <img class="logo" src="assets/logo.png" alt="Nightwatch Aviation" />
+    <h1>Nightwatch Software Division · Lost Dog Tracking System</h1>
+  </header>
+  <div id="map"></div>
+  <div class="controls">
+    <div class="search">
+      <input type="text" id="city" placeholder="Search a city…" autocomplete="off" />
+      <button class="btn" id="searchBtn">Go</button>
+    </div>
+    <button class="btn locate" id="locate">◎ Use my location</button>
+    <button class="btn" id="refresh" title="Refresh shared pins now">⟳ Refresh</button>
+    <h2>Logged</h2>
+    <div class="count" id="count">0 dogs</div>
+    <p class="hint">Click the map to log a dog — <b>shared with every visitor</b>. A pop-up asks for size, color, sex and notes.</p>
+    <ul class="pins" id="pins"></ul>
+    <button class="btn" id="clear">Clear all</button>
+    <div class="status" id="status">Map: Bucyrus, OH (default)</div>
+  </div>
+  <div class="overlay" id="clearOverlay">
+    <div class="modal">
+      <h3>Clear all logged dogs?</h3>
+      <p id="clearMsg">This will remove every pin from the map. This cannot be undone.</p>
+      <div class="modalbtns">
+        <button class="m cancel" id="clearCancel">Cancel</button>
+        <button class="m confirm" id="clearConfirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  // Base map: Esri World Street Map (reliable, no key, no OSM rate-limit).
+  // Default: Esri streets. Alternate: Esri World Imagery (satellite).
+  // NOTE: OpenStreetMap's public tiles were throttling/blanking this connection (returning
+  //       1x1 empty tiles in bursts), so a no-key Esri street basemap is used instead.
+  //       If you have a self-hosted OSM tile set or a MapTiler/Stadia key, swap the URL above.
+  const map = L.map('map').setView([40.808, -82.975], 15);   // Bucyrus, Crawford County, OH
+
+  const baseDark = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Map data &copy; Esri, Maxar, Earthstar Geographics, the Community'
+  });
+  const baseSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
+  });
+  baseDark.addTo(map);
+
+  // If the default tiles get blocked (403, etc.), switch to satellite automatically.
+  let fellBack = false;
+  baseDark.on('tileerror', function () {
+    if (fellBack) return;
+    fellBack = true;
+    if (map.hasLayer(baseSat)) map.removeLayer(baseSat);
+    map.removeLayer(baseDark);
+    baseSat.addTo(map);
+    const s = document.getElementById('status');
+    if (s) { s.textContent = 'Street tiles unavailable, switched to satellite (Esri)'; s.className = 'status err'; }
+  });
+
+  L.control.layers({ 'Streets': baseDark, 'Satellite': baseSat }, null, { position: 'bottomleft' }).addTo(map);
+  let refMarker=L.marker([40.808, -82.975], {
+    icon: L.divIcon({className:'', iconSize:[12,12], html:'<div style="width:12px;height:12px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.3)"></div>'})
+  }).addTo(map).bindTooltip('Bucyrus, OH', {permanent:true, direction:'top', offset:[0,-8]});
+
+  // PLACEHOLDER, owner to confirm the real sizes & colors (see AGENTS.md §6).
+  const SIZES = { "Small":14, "Medium":22, "Large":32 };
+  const COLORS = [
+    {name:"Black", hex:"#111318"}, {name:"Brown", hex:"#6b4423"},
+    {name:"White", hex:"#e9ecef"}, {name:"Gray",  hex:"#8a94a3"},
+    {name:"Tan",   hex:"#c9a06b"}, {name:"Red",   hex:"#c0392b"}
+  ];
+
+  // SHARED pins: the Node.js + SQLite server (server.js) is the source of truth.
+  // This page no longer uses localStorage — every add/edit/delete goes to /api/pins,
+  // and the list is (re)loaded from the server so all visitors see the same pins.
+  let pins = [];
+  const markers = {};
+  let draft = null;
+  let popupOpen = false;
+  const JHDR = { 'Content-Type': 'application/json' };
+  async function api(path, opts){
+    const r = await fetch(path, opts);
+    if (!r.ok) throw new Error('API error ' + r.status);
+    return r.json();
+  }
+  async function loadPins(announce){
+    try {
+      pins = await api('/api/pins');
+      renderPins();
+      if (announce) setStatus('Synced: ' + pins.length + ' shared logged dog' + (pins.length===1?'':'s'), 'ok');
+    } catch (e) {
+      if (announce) setStatus('Server unreachable — shared pins not loaded', 'err');
+    }
+  }
+  async function addPinApi(pin){ const r = await api('/api/pins', { method:'POST', headers:JHDR, body: JSON.stringify(pin) }); pin.id = r.id; pin.created = r.created; }
+  async function savePinApi(pin){ await api('/api/pins/' + pin.id, { method:'PUT', headers:JHDR, body: JSON.stringify(pin) }); }
+  async function removePinApi(id){ await api('/api/pins/' + id, { method:'DELETE' }); }
+  async function clearAllApi(){ await api('/api/pins', { method:'DELETE' }); }
+  function renderPins(){
+    Object.values(markers).forEach(m=>map.removeLayer(m));
+    for (const k in markers) delete markers[k];
+    pins.forEach(addMarker);
+    renderList();
+  }
+
+  function makeIcon(pin){
+    const d = SIZES[pin.size] || 20;
+    return L.divIcon({className:'', iconSize:[d,d], iconAnchor:[d/2,d/2],
+      html:'<div class="nw-pin" style="width:'+d+'px;height:'+d+'px;background:'+pin.hex+'"></div>'});
+  }
+  function label(pin){ return [pin.size, pin.color, pin.sex].filter(Boolean).join(' \u00b7 '); }
+  function formHTML(pin){
+    const size=(pin&&pin.size)||'Medium';
+    const color=(pin&&pin.color)||'Brown';
+    const sex=(pin&&pin.sex)||'Unknown';
+    const notes=(pin&&pin.notes)||'';
+    const sw=COLORS.map(c=>'<span class="swatch'+(c.name===color?' active':'')+'" data-color="'+c.name+'" title="'+c.name+'" style="background:'+c.hex+'"></span>').join('');
+    const sBtn=v=>'<button class="seg'+(size===v?' active':'')+'" data-size="'+v+'">'+v+'</button>';
+    const xBtn=v=>'<button class="seg'+(sex===v?' active':'')+'" data-sex="'+v+'">'+v+'</button>';
+    return '<div class="dogform">'
+      +'<div class="formrow"><label>Size</label><div class="seggroup" data-group="size">'+sBtn('Small')+sBtn('Medium')+sBtn('Large')+'</div></div>'
+      +'<div class="formrow"><label>Color</label><div class="swgroup">'+sw+'</div></div>'
+      +'<div class="formrow"><label>Sex</label><div class="seggroup" data-group="sex">'+xBtn('Male')+xBtn('Female')+xBtn('Unknown')+'</div></div>'
+      +'<div class="formrow"><label>Notes</label><textarea class="notes" placeholder="behavior, owner, etc.">'+notes.replace(/</g,'&lt;')+'</textarea></div>'
+      +'<div class="formbtns"><button class="fb cancel">Cancel</button><button class="fb save">Save</button></div>'
+      +'</div>';
+  }
+
+  function attachForm(marker, pin, isNew){
+    const holder=document.createElement('div');
+    holder.innerHTML=formHTML(pin);
+    const form=holder.firstElementChild;
+    let size=(pin&&pin.size)||'Medium';
+    let color=(pin&&pin.color)||'Brown';
+    let sex=(pin&&pin.sex)||'Unknown';
+
+    const grp=name=>form.querySelectorAll('[data-group="'+name+'"] .seg');
+    grp('size').forEach(btn=>btn.addEventListener('click',ev=>{ev.stopPropagation();grp('size').forEach(b=>b.classList.remove('active'));btn.classList.add('active');size=btn.dataset.size;}));
+    grp('sex').forEach(btn=>btn.addEventListener('click',ev=>{ev.stopPropagation();grp('sex').forEach(b=>b.classList.remove('active'));btn.classList.add('active');sex=btn.dataset.sex;}));
+    form.querySelectorAll('.swgroup .swatch').forEach(s=>s.addEventListener('click',ev=>{ev.stopPropagation();form.querySelectorAll('.swgroup .swatch').forEach(x=>x.classList.remove('active'));s.classList.add('active');color=s.dataset.color;}));
+
+    const notesEl=form.querySelector('.notes');
+    form.querySelector('.save').addEventListener('click',async ev=>{
+      ev.stopPropagation();
+      const hex=(COLORS.find(c=>c.name===color)||COLORS[0]).hex;
+      const notes=notesEl.value.trim();
+      try {
+        if (isNew){
+          const p={ lat:marker.getLatLng().lat, lng:marker.getLatLng().lng, size, color, hex, sex, notes };
+          draft=null;
+          map.removeLayer(marker);
+          await addPinApi(p);
+        } else {
+          pin.size=size;pin.color=color;pin.hex=hex;pin.sex=sex;pin.notes=notes;
+          await savePinApi(pin);
+        }
+        map.closePopup();
+        await loadPins(true);
+      } catch (e) {
+        setStatus('Could not save pin: ' + e.message, 'err');
+      }
+    });
+    form.querySelector('.cancel').addEventListener('click',ev=>{
+      ev.stopPropagation();
+      map.closePopup();
+      if (isNew){ map.removeLayer(marker); draft=null; }
+    });
+
+    marker.bindPopup(form, { maxWidth:330, autoPan:true, closeButton:true });
+    marker.openPopup();
+  }
+  function addMarker(pin){
+    const m=L.marker([pin.lat,pin.lng],{icon:makeIcon(pin),draggable:true,opacity:.95});
+    m.addTo(map);
+    m.on('click',()=>attachForm(m,pin,false));
+    m.on('dragend',async()=>{ pin.lat=m.getLatLng().lat; pin.lng=m.getLatLng().lng; try{ await savePinApi(pin); }catch(e){ setStatus('Could not move pin','err'); } });
+    m.bindTooltip(label(pin),{direction:'top',offset:[0,-10]});
+    markers[pin.id]=m;
+    return m;
+  }
+
+  map.on('click',e=>{
+    if (draft){ map.removeLayer(draft); draft=null; }
+    const m=L.marker([e.latlng.lat,e.latlng.lng],{icon:makeIcon({size:'Medium',color:'Brown',hex:'#6b4423'}),draggable:true,opacity:.95});
+    m.addTo(map);
+    draft=m;
+    attachForm(m,null,true);
+  });
+
+  function renderList(){
+    const ul=document.getElementById('pins'); ul.innerHTML='';
+    document.getElementById('count').textContent=pins.length+(pins.length===1?' dog':' dogs');
+    pins.slice().reverse().forEach(pin=>{
+      const li=document.createElement('li');
+      const dot=document.createElement('span'); dot.className='dot'; dot.style.background=pin.hex;
+      const meta=document.createElement('div'); meta.className='pinmeta';
+      const lab=document.createElement('div'); lab.className='pinlabel'; lab.textContent=label(pin);
+      meta.appendChild(lab);
+      if (pin.notes){ const nn=document.createElement('div'); nn.className='pinnote'; nn.textContent=pin.notes; meta.appendChild(nn); }
+      const del=document.createElement('button'); del.className='del'; del.textContent='\u00d7'; del.title='Remove';
+      del.addEventListener('click',async()=>{ try{ await removePinApi(pin.id); await loadPins(true); }catch(e){ setStatus('Could not delete pin','err'); } });
+      li.append(dot,meta,del); ul.appendChild(li);
+    });
+  }
+
+  const overlay=document.getElementById('clearOverlay');
+  const clearMsg=document.getElementById('clearMsg');
+  const doClear=async()=>{
+    if (draft){ map.removeLayer(draft); draft=null; }
+    try { await clearAllApi(); await loadPins(true); } catch(e){ setStatus('Could not clear pins','err'); }
+  };
+  document.getElementById('clear').addEventListener('click',()=>{
+    if (!pins.length) return;
+    clearMsg.textContent='This will remove '+pins.length+' logged dog'+(pins.length===1?'':'s')+' from the map. This cannot be undone.';
+    overlay.classList.add('show');
+  });
+  document.getElementById('clearCancel').addEventListener('click',()=>overlay.classList.remove('show'));
+  document.getElementById('clearConfirm').addEventListener('click',()=>{ overlay.classList.remove('show'); doClear(); });
+  overlay.addEventListener('click',e=>{ if(e.target===overlay) overlay.classList.remove('show'); });
+
+  // --- Geolocation: center on the user's phone; fall back to Bucyrus if denied/unavailable ---
+  const BUCYRUS=[40.808,-82.975];
+  let userCircle=null, userDot=null;
+  const statusEl=document.getElementById('status');
+  function setStatus(msg, cls){ statusEl.textContent=msg; statusEl.className='status'+(cls?' '+cls:''); }
+  function locate(){
+    if(!('geolocation' in navigator)){ setStatus('Location not supported, defaulting to Bucyrus, OH','err'); return; }
+    setStatus('Requesting location…');
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const ll=[pos.coords.latitude,pos.coords.longitude];
+      map.setView(ll,16);
+      if(userCircle){ map.removeLayer(userCircle); userCircle=null; }
+      if(userDot){ map.removeLayer(userDot); userDot=null; }
+      if(pos.coords.accuracy){ userCircle=L.circle(ll,{radius:pos.coords.accuracy,color:'#3b82f6',weight:1,fillColor:'#3b82f6',fillOpacity:.12}).addTo(map); }
+      userDot=L.marker(ll,{icon:L.divIcon({className:'',iconSize:[16,16],iconAnchor:[8,8],html:'<div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.25)"></div>'})}).addTo(map).bindTooltip('Your location',{direction:'top',offset:[0,-10]});
+      setStatus('Centered on you (±'+Math.round(pos.coords.accuracy)+' m)','ok');
+    },err=>{
+      map.setView(BUCYRUS,15);
+      const why=(err&&err.code===1)?'permission denied':'unavailable';
+      setStatus('GPS '+why+', defaulting to Bucyrus, OH','err');
+    },{enableHighAccuracy:true,timeout:8000,maximumAge:60000});
+  }
+  document.getElementById('locate').addEventListener('click',locate);
+  locate();
+
+  // --- City search (Nominatim / OpenStreetMap geocoding, no API key) ---
+  let searchMarker=null;
+  async function searchCity(){
+    const el=document.getElementById('city');
+    const q=el.value.trim();
+    if(!q) return;
+    setStatus('Searching "'+q+'"…');
+    let hit=null;
+    // 1) Photon (Komoot): OSM-based geocoder served by a host that does NOT impose OpenStreetMap's policy blocks.
+    try{
+      const pr=await fetch('https://photon.komoot.io/api/?limit=1&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+      if(pr.ok){
+        const pd=await pr.json();
+        const f=pd&&pd.features&&pd.features[0];
+        if(f&&f.geometry&&f.geometry.coordinates){
+          const p=f.properties||{};
+          hit={ lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0], boundingbox:null, name:p.name||q, display_name:[p.name,p.neighbourhood,p.city,p.state,p.country].filter(Boolean).join(', ')||q };
+        }
+      }
+    }catch(e){}
+    // 2) Nominatim (fallback only)
+    if(!hit){
+      try{
+        const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+        if(r.ok){
+          const d=await r.json();
+          const n=d&&d[0];
+          if(n){ hit={ lat:parseFloat(n.lat), lon:parseFloat(n.lon), boundingbox:(n.boundingbox?n.boundingbox.map(parseFloat):null), name:n.name||q, display_name:n.display_name||q }; }
+        }
+      }catch(e){}
+    }
+    if(!hit){ setStatus('No match for "'+q+'" (or search blocked), staying put','err'); return; }
+    const ll=[hit.lat,hit.lon];
+    if(hit.boundingbox){
+      const b=hit.boundingbox;
+      map.fitBounds([[b[0],b[2]],[b[1],b[3]]],{maxZoom:16,paddingTopLeft:L.point(40,60),paddingBottomRight:L.point(250,40)});
+    }else{
+      map.setView(ll,14);
+    }
+    if(refMarker){ map.removeLayer(refMarker); refMarker=null; }
+    if(searchMarker){ map.removeLayer(searchMarker); }
+    searchMarker=L.marker(ll,{icon:L.divIcon({className:'',iconSize:[14,14],iconAnchor:[7,7],html:'<div style="width:14px;height:14px;border-radius:50%;background:#f5a623;border:2px solid #fff;box-shadow:0 0 0 4px rgba(245,166,35,.3)"></div>'})}).addTo(map).bindTooltip(hit.display_name,{direction:'top',offset:[0,-10]});
+    setStatus('Map: '+hit.name);
+  }
+  document.getElementById('searchBtn').addEventListener('click',searchCity);
+  document.getElementById('city').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); searchCity(); }});
+
+  // --- shared-pins startup: load from the server, auto-refresh, track popup state ---
+  map.on('popupopen',()=>{ popupOpen=true; });
+  map.on('popupclose',()=>{ popupOpen=false; });
+  const refreshBtn=document.getElementById('refresh');
+  if (refreshBtn) refreshBtn.addEventListener('click',()=>loadPins(true));
+  loadPins(true);                                        // initial shared load
+  setInterval(()=>{ if(!popupOpen) loadPins(false); }, 15000);  // pick up other users' pins
+  </script>
+</body>
+</html>

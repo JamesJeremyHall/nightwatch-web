@@ -1,0 +1,10 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# NOTE: nightwatch-web.db (SQLite) sits at the repo root and IS tracked on purpose.
+# It holds the shared pins and is committed so the data can be restored from git.
+
+# local backups (do not commit)
+*.bak

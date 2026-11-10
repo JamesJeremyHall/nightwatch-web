@@ -1,0 +1,19 @@
+{
+  "name": "nightwatch-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nightwatch dog-tracking map: Node.js + Express + SQLite (built-in node:sqlite) serving the site and a shared pins API.",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "express": "^4.21.2"
+  }
+}
