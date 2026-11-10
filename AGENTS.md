@@ -2,7 +2,7 @@
 
 > Read this first. It is the source of truth for anyone (human or AI) touching this repo.
 
-**Hard rule (project boundaries):** Nightwatch is its own standalone project, separate from the Robin project ("projects folder"). **Working on Nightwatch (this repo) excludes the projects folder in all cases** — never read, edit, reference, or mention it. **Conversely, working inside the projects folder excludes Nightwatch in all cases.** Never cross-contaminate: no shared files, no cross-project references in code, docs, or conversation, and never frame Nightwatch work around Robin or his project.
+**Hard rule (project boundaries):** Nightwatch is its own standalone project, separate from the Robin project. The projects folder (containing `/robin`) lives at `projects/` inside this repo directory — `C:\projects\nightwatch-web\projects\`. **Working on Nightwatch (this repo) excludes the projects folder in all cases** — never read, edit, reference, mention, or commit anything inside it. **Conversely, working inside the projects folder excludes Nightwatch in all cases.** Never cross-contaminate: no shared files, no cross-project references in code, docs, or conversation, and never frame Nightwatch work around Robin or his project.
 
 **Hard rule:** only state facts the owner confirmed. Never invent statistics, years, credentials, affiliations, or capabilities. If it isn't here or owner-provided, it doesn't exist.
 
@@ -163,6 +163,7 @@ On a fresh box: install Node ≥ 22.5, clone the repo to `/opt/nightwatch-web`, 
 
 ## Never commit
 
+- The `projects/` folder (the Robin project, incl. `robin/`) — it lives inside this repo directory on some machines; it is **never** part of this repo and never to be committed (git-ignored as a safety net; see "project boundaries" above)
 - SSH keys (`.pem`) — stay in `C:\projects\keys/` (or `~/.ssh/`), never in git
 - `nightwatch-web.db` + its `-wal`/`-shm`/`-journal` files (already git-ignored)
 - `node_modules/`, `*.log`, `*.bak` (already git-ignored)

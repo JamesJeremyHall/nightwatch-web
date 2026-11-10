@@ -15,3 +15,7 @@ nightwatch-web.db-shm
 
 # local backups (do not commit)
 *.bak
+
+# the projects folder (Robin project) can sit inside this repo directory on some
+# machines - it is NEVER part of this repo; ignore it as a safety net
+projects/
