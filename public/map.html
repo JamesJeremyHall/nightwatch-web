@@ -262,7 +262,7 @@
   function makeIcon(pin){
     const d = SIZES[pin.size] || 20;
     return L.divIcon({className:'', iconSize:[d,d], iconAnchor:[d/2,d/2],
-      html:'<div class="nw-pin" style="width:'+d+'px;height:'+d+'px;background:'+pin.hex+'"></div>'});
+      html:'<div class="nw-pin" style="width:'+d+'px;height:'+d+'px;background:'+pin.hex+';opacity:'+pinOpacity(pin)+'"></div>'});
   }
   // Shared display label (pin list + hover tooltip): fur color · size · sex · collar —
   // same order as the form, all fields shown (collar falls back to — on legacy pins).
@@ -295,6 +295,22 @@
     return (Date.now() - t) < STALE_MS;
   }
   function visiblePins(){ return showStale ? pins : pins.filter(isFresh); }
+  // Freshness fade: a pin renders at full strength when it's fresh and fades out as it
+  // nears the 48h window, reaching its faintest just before it drops off — a live
+  // "freshness" gradient. Fresh pins look exactly as before (0.95); ~48h-old pins are
+  // very faint (0.12). Pins with no timestamp are never faded (mirrors isFresh, which
+  // never hides them). Re-computed on every 15s auto-refresh, so pins keep dimming
+  // while the page is open and vanish exactly at the 48h cutoff.
+  const FRESH_OPACITY = 0.95;
+  const FADED_OPACITY = 0.12;
+  function pinOpacity(pin){
+    const t = whenOf(pin);
+    if (t == null) return FRESH_OPACITY;         // no timestamp → full strength (never fade)
+    const age = Date.now() - t;
+    if (age <= 0) return FRESH_OPACITY;          // brand-new / future-dated → full strength
+    const frac = Math.min(age / STALE_MS, 1);    // 0 (just now) → 1 (48h old)
+    return FRESH_OPACITY - frac * (FRESH_OPACITY - FADED_OPACITY);
+  }
   function formHTML(pin, isNew){
     if (isNew){
       // New sighting: NOTHING is preselected (fur color/size/sex/collar all start blank) —
@@ -457,7 +473,7 @@
     marker.openPopup();
   }
   function addMarker(pin){
-    const m=L.marker([pin.lat,pin.lng],{icon:makeIcon(pin),opacity:.95});
+    const m=L.marker([pin.lat,pin.lng],{icon:makeIcon(pin)});
     m.addTo(map);
     m.on('click',()=>attachForm(m,pin,false));
     const when=fmtWhen(whenOf(pin));
@@ -469,7 +485,7 @@
 
   map.on('click',e=>{
     if (draft){ map.removeLayer(draft); draft=null; }
-    const m=L.marker([e.latlng.lat,e.latlng.lng],{icon:makeIcon({size:'Medium',color:'Brown',hex:'#6b4423'}),draggable:true,opacity:.95});
+    const m=L.marker([e.latlng.lat,e.latlng.lng],{icon:makeIcon({size:'Medium',color:'Brown',hex:'#6b4423'}),draggable:true});
     m.addTo(map);
     draft=m;
     attachForm(m,null,true);
@@ -482,7 +498,7 @@
     document.getElementById('listEmpty').hidden = (vis.length > 0) || showStale || (pins.length === 0);
     vis.forEach(pin=>{
       const li=document.createElement('li');
-      const dot=document.createElement('span'); dot.className='dot'; dot.style.background=pin.hex;
+      const dot=document.createElement('span'); dot.className='dot'; dot.style.background=pin.hex; dot.style.opacity=pinOpacity(pin);
       const meta=document.createElement('div'); meta.className='pinmeta';
       const lab=document.createElement('div'); lab.className='pinlabel'; lab.textContent=label(pin);
       meta.appendChild(lab);
