@@ -86,6 +86,12 @@
   .fb.del:hover{background:#4d1618;border-color:#ff5c5c;color:#ffb3b3}
   .delconfirm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:13px;font-size:12px;color:var(--text)}
   .delconfirm[hidden]{display:none}
+  .sentinel{margin-top:13px;font-size:12px;color:var(--text)}
+  .sentinel[hidden]{display:none}
+  .sentrow{display:flex;gap:8px;align-items:stretch;margin-top:8px}
+  .sentpw{flex:1;min-width:110px;background:#05070d;color:var(--text);border:1px solid var(--border);border-radius:7px;padding:7px 8px;font-family:var(--body);font-size:12px;color-scheme:dark}
+  .sentpw:focus{outline:none;border-color:var(--accent)}
+  .senterr{display:block;margin-top:8px;font-size:11px;color:#ff9d9d}
   .leaflet-tooltip .pinnotes{margin-top:5px;font-size:11px;line-height:1.4;white-space:pre-wrap;max-width:230px;color:#c9d4e5}
   .btn.locate{color:var(--accent2);margin-top:0;margin-bottom:10px}
   .btn.stale{margin-top:0}
@@ -228,6 +234,24 @@
   async function addPinApi(pin){ const r = await api('/api/pins', { method:'POST', headers:JHDR, body: JSON.stringify(pin) }); pin.id = r.id; pin.created = r.created; }
   async function savePinApi(id, notes){ await api('/api/pins/' + id, { method:'PUT', headers:JHDR, body: JSON.stringify({ notes }) }); } // notes is the only field the server allows to change after logging
   async function removePinApi(id){ await api('/api/pins/' + id, { method:'DELETE' }); }
+  // Nightwatch Sentinel: deleting a logged sighting is password-protected. The page
+  // stores only the SHA-256 digest of the password (never the password itself —
+  // "mylah", lowercase, as of 2026-11-11). A correct entry unlocks deletion for the
+  // browser session (sessionStorage), so the owner doesn't re-enter it per pin.
+  const SENTINEL_SHA256 = 'db739cf185272b8169d1235b0f2a0c0c33ea83717492b6381d5f806a989cb59a';
+  let sentinelUnlocked = false;
+  try { sentinelUnlocked = sessionStorage.getItem('nw.sentinel') === '1'; } catch (e) {}
+  async function sentinelVerify(input){
+    if (!window.crypto || !crypto.subtle) return false;   // non-secure context: stays locked
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    if (hex === SENTINEL_SHA256) {
+      sentinelUnlocked = true;
+      try { sessionStorage.setItem('nw.sentinel', '1'); } catch (e) {}
+      return true;
+    }
+    return false;
+  }
   function renderPins(){
     Object.values(markers).forEach(m=>map.removeLayer(m));
     for (const k in markers) delete markers[k];
@@ -305,6 +329,7 @@
       +'<tr><th>Notes</th><td><textarea class="notes" placeholder="behavior, owner, etc.">'+((pin.notes)||'').replace(/</g,'&lt;')+'</textarea></td></tr>'
       +'</tbody></table>'
       +'<div class="formbtns"><button class="fb del">Delete</button><button class="fb cancel">Cancel</button><button class="fb save">Save</button></div>'
+      +'<div class="sentinel" hidden><span>Nightwatch Sentinel — deletion is password-protected.</span><div class="sentrow"><input type="password" class="sentpw" placeholder="Sentinel password" autocomplete="off" /><button class="fb save">Unlock</button><button class="fb cancel sentcancel">Cancel</button></div><span class="senterr" hidden>Incorrect password — try again.</span></div>'
       +'<div class="delconfirm" hidden><span>Delete this sighting?</span><button class="fb del yes">Yes, delete</button><button class="fb no">No</button></div>'
       +'</div>';
   }
@@ -377,18 +402,44 @@
       if (isNew){ map.removeLayer(marker); draft=null; }
     });
 
-    // Red Delete button + in-popup confirmation (existing pins only)
+    // Red Delete button + Nightwatch Sentinel gate + in-popup confirmation (existing pins only)
     const delBtn=form.querySelector('.fb.del');
     const delRow=form.querySelector('.delconfirm');
     if (delBtn && delRow){
+      const sentRow=form.querySelector('.sentinel');
+      const sentPw=sentRow.querySelector('.sentpw');
+      const sentErr=sentRow.querySelector('.senterr');
+      const closeSentinel=()=>{ sentRow.hidden=true; sentPw.value=''; sentErr.hidden=true; form.querySelector('.formbtns').style.display=''; };
       delBtn.addEventListener('click',ev=>{
         ev.stopPropagation();
         form.querySelector('.formbtns').style.display='none';
+        if (sentinelUnlocked){ delRow.hidden=false; return; }   // already unlocked this session
+        delRow.hidden=true;
+        sentRow.hidden=false;
+        sentPw.focus();
+      });
+      sentRow.querySelector('.save').addEventListener('click',async ev=>{
+        ev.stopPropagation();
+        if (!(await sentinelVerify(sentPw.value))){
+          sentErr.hidden=false;
+          sentPw.value='';
+          sentPw.focus();
+          return;
+        }
+        sentRow.hidden=true; sentPw.value=''; sentErr.hidden=true;
         delRow.hidden=false;
+      });
+      sentRow.querySelector('.sentcancel').addEventListener('click',ev=>{
+        ev.stopPropagation();
+        closeSentinel();
+      });
+      sentPw.addEventListener('keydown',ev=>{
+        if (ev.key==='Enter'){ ev.preventDefault(); sentRow.querySelector('.save').click(); }
       });
       delRow.querySelector('.no').addEventListener('click',ev=>{
         ev.stopPropagation();
         delRow.hidden=true;
+        sentRow.hidden=true;
         form.querySelector('.formbtns').style.display='';
       });
       delRow.querySelector('.yes').addEventListener('click',async ev=>{
