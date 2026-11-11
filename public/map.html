@@ -622,8 +622,8 @@
       staleToggle.classList.toggle('active', showStale);
       staleToggle.setAttribute('aria-pressed', String(showStale));
       renderPins();
-      fitted = fitToVisible();              // re-frame the map around what is now displayed
-      if (!fitted) map.setView(BUCYRUS,15); // nothing displayed → back to the default center
+      // Keep the current view/zoom: it is set only on first load (fitToDogs → fitToVisible).
+      // Toggling 48h ↔ all must only show/hide pins, never re-frame the map.
     });
   }
   if (embedded) loadPins(true);                            // initial shared load (full-screen loads above)
