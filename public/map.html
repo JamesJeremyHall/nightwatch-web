@@ -34,7 +34,6 @@
   #map{flex:1;min-height:340px}
   .controls{position:fixed;z-index:1500;top:58px;right:14px;width:min(330px,calc(100vw - 28px));max-height:calc(100vh - 80px);overflow:auto;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;backdrop-filter:blur(6px);display:none;box-shadow:0 18px 44px rgba(0,0,0,.55)}
   .controls.open{display:block}
-  .controls h2{margin:0 0 8px;font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--dim)}
   .hint{margin:0 0 8px;font-size:11px;line-height:1.5;color:var(--dim)}
   .pins{list-style:none;margin:0;max-height:220px;overflow:auto;padding:0;font-size:12px}
   .pins li{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--border);cursor:pointer}
@@ -89,9 +88,8 @@
   .delconfirm[hidden]{display:none}
   .leaflet-tooltip .pinnotes{margin-top:5px;font-size:11px;line-height:1.4;white-space:pre-wrap;max-width:230px;color:#c9d4e5}
   .btn.locate{color:var(--accent2);margin-top:0;margin-bottom:10px}
-  .stale{display:flex;align-items:center;gap:8px;margin-top:10px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);cursor:pointer;user-select:none}
-  .stale:hover{color:var(--text)}
-  .stale input{flex:none;width:14px;height:14px;margin:0;accent-color:var(--accent);cursor:pointer}
+  .btn.stale{margin-top:0}
+  .btn.stale.active{background:var(--accent);border-color:var(--accent);color:#04101f;font-weight:600}
   .btn.locate:hover{background:var(--accent);color:#04101f;border-color:var(--accent)}
   .search{display:flex;gap:6px;margin-bottom:10px}
   .search input{flex:1;min-width:0;background:#05070d;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 9px;font-family:var(--body);font-size:12px}
@@ -129,11 +127,10 @@
     </div>
     <button class="btn locate" id="locate">◎ Use my location</button>
     <button class="btn" id="refresh" title="Refresh shared pins now">⟳ Refresh</button>
-    <label class="stale" for="staleToggle"><input type="checkbox" id="staleToggle" /> Show older sightings (&gt; 48h)</label>
-    <h2>Logged</h2>
+    <button class="btn stale" id="staleToggle" type="button" aria-pressed="false">Show sightings older than 48h</button>
     <p class="hint">Click the map to report a lost dog sighting. A pop-up asks for fur color, size, sex, collar and notes. Once a sighting is logged, only its notes can be edited (or the pin deleted). Scroll through and tap on the reported sightings below to zoom in on the location.</p>
     <ul class="pins" id="pins"></ul>
-    <p class="hint" id="listEmpty" hidden>No sightings in the last 48 hours — toggle “show older” above to see the full log.</p>
+    <p class="hint" id="listEmpty" hidden>No sightings in the last 48 hours — use “Show sightings older than 48h” above to see the full log.</p>
     <div class="status" id="status">Map: Bucyrus, OH (default)</div>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -550,10 +547,13 @@
   if (refreshBtn) refreshBtn.addEventListener('click',()=>loadPins(true));
   const staleToggle=document.getElementById('staleToggle');
   if (staleToggle) {
-    staleToggle.checked = showStale;
-    staleToggle.addEventListener('change',()=>{
-      showStale = staleToggle.checked;
+    staleToggle.classList.toggle('active', showStale);
+    staleToggle.setAttribute('aria-pressed', String(showStale));
+    staleToggle.addEventListener('click',()=>{
+      showStale = !showStale;
       try { localStorage.setItem('nw.showStale', showStale ? '1' : '0'); } catch (e) {}
+      staleToggle.classList.toggle('active', showStale);
+      staleToggle.setAttribute('aria-pressed', String(showStale));
       renderPins();
       fitted = fitToVisible();              // re-frame the map around what is now displayed
       if (!fitted) map.setView(BUCYRUS,15); // nothing displayed → back to the default center
