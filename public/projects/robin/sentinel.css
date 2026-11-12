@@ -1,0 +1,63 @@
+/* Nightwatch Sentinel — access gate for the Robin draft site (nightwatch palette).
+   `html.nw-locked` hides the site until the passcode is verified. All rules are
+   prefixed with `nw-` / `.nw-sentinel` so nothing collides with the site's style.css. */
+
+html.nw-locked .preview,
+html.nw-locked header.site,
+html.nw-locked section,
+html.nw-locked footer.site { display: none !important; }
+
+.nw-sentinel {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(120% 120% at 50% 0%, #0a1626 0%, #05070d 60%);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #eaf2ff;
+}
+.nw-sentinel-card {
+  width: min(420px, 100%);
+  background: rgba(8, 13, 22, 0.92);
+  border: 1px solid rgba(59, 230, 255, 0.22);
+  border-radius: 16px;
+  padding: 30px 28px 26px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(59, 230, 255, 0.06);
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+.nw-sentinel-eye { width: 64px; margin: 0 auto 10px; display: flex; justify-content: center; }
+.nw-sentinel-eye svg { width: 62px; height: auto; color: #3de6ff; filter: drop-shadow(0 0 12px rgba(59, 230, 255, 0.45)); }
+.nw-sentinel-title { margin: 6px 0; font-size: 17px; font-weight: 700; letter-spacing: 0.18em; color: #ffd25a; }
+.nw-sentinel-sub { margin: 0 0 20px; font-size: 13.5px; line-height: 1.5; color: #b9c7dd; }
+.nw-sentinel-pw {
+  width: 100%;
+  box-sizing: border-box;
+  background: #05070d;
+  color: #eaf2ff;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 12px 13px;
+  font-size: 15px;
+  color-scheme: dark;
+}
+.nw-sentinel-pw:focus { outline: none; border-color: #3de6ff; box-shadow: 0 0 0 3px rgba(59, 230, 255, 0.18); }
+.nw-sentinel-btn {
+  width: 100%;
+  margin-top: 12px;
+  cursor: pointer;
+  background: #3de6ff;
+  color: #04121f;
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+}
+.nw-sentinel-btn:hover { background: #66ecff; }
+.nw-sentinel-err { margin: 12px 0 0; font-size: 12.5px; color: #ff9d9d; }
+.nw-sentinel-err[hidden] { display: none; }
